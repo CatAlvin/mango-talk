@@ -1,0 +1,9 @@
+from collections.abc import Generator
+from app.db.session import SessionLocal
+
+def get_db() -> Generator:
+    db = SessionLocal()
+    try:
+        yield db # yield is used to create a generator that can be used in FastAPI dependency injection. It allows the function to return a value (the database session) and then continue executing code after the yield statement (closing the database session) when the request is finished.
+    finally:
+        db.close()
