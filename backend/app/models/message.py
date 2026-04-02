@@ -1,0 +1,50 @@
+from datetime import datetime
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, func, text
+from sqlalchemy.orm import Mapped, mapped_column
+from app.db.session import Base
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    room_id: Mapped[int] = mapped_column(ForeignKey("chat_rooms.id"), nullable=False, index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+
+    message_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="text",
+        server_default="text",
+        index=True,
+    )
+
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    reply_to_message_id: Mapped[int | None] = mapped_column(
+        ForeignKey("messages.id"),
+        nullable=True,
+        index=True,
+    )
+
+    is_recalled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("0"),
+    )
+
+    recalled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

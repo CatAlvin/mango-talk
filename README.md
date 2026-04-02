@@ -83,6 +83,13 @@ source .venv/bin/activate
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
+## Create Model in MySQL
+```bash
+cd /home/projects/mango-talk/backend
+source .venv/bin/activate
+python -m app.db.init_db
+```
+
 ## Roadmap
 
 ### Next

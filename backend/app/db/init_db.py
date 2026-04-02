@@ -1,5 +1,5 @@
 from app.db.session import Base, engine
-from app.models import User  # noqa: F401
+from app.models import User, ChatRoom, ChatRoomMember, Message  # noqa: F401
 
 def main():
     Base.metadata.create_all(bind=engine)
