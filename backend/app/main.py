@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.users import router as users_router
+from app.api.rooms import router as rooms_router
+from app.api.messages import router as messages_router
 from app.core.config import settings
 from app.db.session import test_db_connection
 
@@ -18,6 +20,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(rooms_router)
+app.include_router(messages_router)
 
 @app.get("/")
 def root():
