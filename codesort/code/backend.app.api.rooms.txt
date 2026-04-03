@@ -1,0 +1,234 @@
+mango-talk/backend/app/api/rooms.py
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user
+from app.db.deps import get_db
+from app.models.chat_room import ChatRoom
+from app.models.chat_room_member import ChatRoomMember
+from app.models.user import User
+from app.schemas.room import (
+    PrivateRoomCreate,
+    GroupRoomCreate,
+    RoomActionResponse,
+    RoomListItem,
+)
+
+router = APIRouter(prefix="/rooms", tags=["rooms"])
+
+
+def find_existing_private_room(
+    db: Session,
+    current_user_id: int,
+    target_user_id: int,
+) -> ChatRoom | None:
+    candidate_rooms = db.execute(
+        select(ChatRoom)
+        .join(ChatRoomMember, ChatRoom.id == ChatRoomMember.room_id)
+        .where(
+            ChatRoom.type == "private",
+            ChatRoom.is_active == True,
+            ChatRoomMember.user_id == current_user_id,
+        )
+    ).scalars().all()
+
+    for room in candidate_rooms:
+        member_ids = db.execute(
+            select(ChatRoomMember.user_id).where(ChatRoomMember.room_id == room.id)
+        ).scalars().all()
+
+        if len(member_ids) == 2 and set(member_ids) == {current_user_id, target_user_id}:
+            return room
+
+    return None
+
+
+@router.post("/private", response_model=RoomActionResponse)
+def create_private_room(
+    payload: PrivateRoomCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.target_user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="不能和自己创建私聊",
+        )
+
+    target_user = db.get(User, payload.target_user_id)
+    if not target_user or not target_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="目标用户不存在或不可用",
+        )
+
+    existing_room = find_existing_private_room(db, current_user.id, payload.target_user_id)
+    if existing_room:
+        return {
+            "message": "private room already exists",
+            "room": existing_room,
+        }
+
+    room = ChatRoom(
+        type="private",
+        name=None,
+        owner_id=None,
+        is_active=True,
+    )
+    db.add(room)
+    db.flush()
+
+    db.add(
+        ChatRoomMember(
+            room_id=room.id,
+            user_id=current_user.id,
+            role="member",
+            is_muted=False,
+        )
+    )
+    db.add(
+        ChatRoomMember(
+            room_id=room.id,
+            user_id=target_user.id,
+            role="member",
+            is_muted=False,
+        )
+    )
+
+    db.commit()
+    db.refresh(room)
+
+    return {
+        "message": "private room created",
+        "room": room,
+    }
+
+
+@router.post("/group", response_model=RoomActionResponse, status_code=status.HTTP_201_CREATED)
+def create_group_room(
+    payload: GroupRoomCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    group_name = payload.name.strip()
+    if not group_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="群聊名称不能为空",
+        )
+
+    member_ids = list(dict.fromkeys(payload.member_user_ids))
+    member_ids = [user_id for user_id in member_ids if user_id != current_user.id]
+
+    if member_ids:
+        users = db.execute(
+            select(User).where(User.id.in_(member_ids), User.is_active == True)
+        ).scalars().all()
+
+        found_user_ids = {user.id for user in users}
+        missing_ids = [user_id for user_id in member_ids if user_id not in found_user_ids]
+
+        if missing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"以下用户不存在或不可用: {missing_ids}",
+            )
+
+    room = ChatRoom(
+        type="group",
+        name=group_name,
+        owner_id=current_user.id,
+        description=payload.description.strip() if payload.description else None,
+        is_active=True,
+    )
+    db.add(room)
+    db.flush()
+
+    db.add(
+        ChatRoomMember(
+            room_id=room.id,
+            user_id=current_user.id,
+            role="owner",
+            is_muted=False,
+        )
+    )
+
+    for user_id in member_ids:
+        db.add(
+            ChatRoomMember(
+                room_id=room.id,
+                user_id=user_id,
+                role="member",
+                is_muted=False,
+            )
+        )
+
+    db.commit()
+    db.refresh(room)
+
+    return {
+        "message": "group room created",
+        "room": room,
+    }
+
+
+@router.get("/mine", response_model=list[RoomListItem])
+def list_my_rooms(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.execute(
+        select(ChatRoomMember, ChatRoom)
+        .join(ChatRoom, ChatRoom.id == ChatRoomMember.room_id)
+        .where(
+            ChatRoomMember.user_id == current_user.id,
+            ChatRoom.is_active == True,
+        )
+        .order_by(ChatRoom.updated_at.desc(), ChatRoom.id.desc())
+    ).all()
+
+    result = []
+
+    for membership, room in rows:
+        member_count = db.execute(
+            select(func.count(ChatRoomMember.id)).where(ChatRoomMember.room_id == room.id)
+        ).scalar_one()
+
+        display_name = room.name or f"Room {room.id}"
+
+        if room.type == "private":
+            other_user = db.execute(
+                select(User)
+                .join(ChatRoomMember, ChatRoomMember.user_id == User.id)
+                .where(
+                    ChatRoomMember.room_id == room.id,
+                    User.id != current_user.id,
+                )
+            ).scalars().first()
+
+            if other_user:
+                display_name = other_user.username
+
+        elif room.type == "group":
+            display_name = room.name or f"Group {room.id}"
+
+        result.append(
+            {
+                "id": room.id,
+                "type": room.type,
+                "name": room.name,
+                "display_name": display_name,
+                "owner_id": room.owner_id,
+                "avatar_url": room.avatar_url,
+                "description": room.description,
+                "is_active": room.is_active,
+                "member_count": member_count,
+                "my_role": membership.role,
+                "joined_at": membership.joined_at,
+                "created_at": room.created_at,
+            }
+        )
+
+    return result

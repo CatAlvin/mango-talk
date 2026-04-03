@@ -1,0 +1,171 @@
+mango-talk/backend/app/api/messages.py
+
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user
+from app.db.deps import get_db
+from app.models.chat_room import ChatRoom
+from app.models.chat_room_member import ChatRoomMember
+from app.models.message import Message
+from app.models.user import User
+from app.schemas.message import MessageCreate, MessageActionResponse, MessagePublic
+
+router = APIRouter(prefix="/messages", tags=["messages"])
+
+
+def get_room_member(db: Session, room_id: int, user_id: int) -> ChatRoomMember | None:
+    return db.execute(
+        select(ChatRoomMember).where(
+            ChatRoomMember.room_id == room_id,
+            ChatRoomMember.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+
+
+@router.post("", response_model=MessageActionResponse, status_code=status.HTTP_201_CREATED)
+def create_message(
+    payload: MessageCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    room = db.get(ChatRoom, payload.room_id)
+    if not room or not room.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="房间不存在或不可用",
+        )
+
+    membership = get_room_member(db, payload.room_id, current_user.id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你不在该房间内",
+        )
+
+    if membership.is_muted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你已被禁言，无法发送消息",
+        )
+
+    if payload.message_type != "text":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="当前阶段仅支持 text 消息",
+        )
+
+    content = (payload.content or "").strip()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="消息内容不能为空",
+        )
+
+    reply_to_message_id = payload.reply_to_message_id
+    if reply_to_message_id is not None:
+        reply_target = db.get(Message, reply_to_message_id)
+        if not reply_target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="被回复的消息不存在",
+            )
+        if reply_target.room_id != payload.room_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不能回复其他房间的消息",
+            )
+
+    msg = Message(
+        room_id=payload.room_id,
+        sender_id=current_user.id,
+        message_type="text",
+        content=content,
+        reply_to_message_id=reply_to_message_id,
+        is_recalled=False,
+    )
+
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    return {
+        "message": "message sent",
+        "data": msg,
+    }
+
+
+@router.get("/room/{room_id}", response_model=list[MessagePublic])
+def list_room_messages(
+    room_id: int,
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    room = db.get(ChatRoom, room_id)
+    if not room or not room.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="房间不存在或不可用",
+        )
+
+    membership = get_room_member(db, room_id, current_user.id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你不在该房间内",
+        )
+
+    messages = db.execute(
+        select(Message)
+        .where(Message.room_id == room_id)
+        .order_by(Message.created_at.asc(), Message.id.asc())
+        .limit(limit)
+    ).scalars().all()
+
+    return messages
+
+
+@router.post("/{message_id}/recall", response_model=MessageActionResponse)
+def recall_message(
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    msg = db.get(Message, message_id)
+    if not msg:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="消息不存在",
+        )
+
+    membership = get_room_member(db, msg.room_id, current_user.id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你不在该房间内",
+        )
+
+    if msg.sender_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只能撤回自己发送的消息",
+        )
+
+    if msg.is_recalled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该消息已经撤回",
+        )
+
+    msg.is_recalled = True
+    msg.recalled_at = datetime.now()
+    db.commit()
+    db.refresh(msg)
+
+    return {
+        "message": "message recalled",
+        "data": msg,
+    }

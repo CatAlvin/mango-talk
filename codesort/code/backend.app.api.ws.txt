@@ -1,0 +1,198 @@
+mango-talk/backend/app/api/ws.py
+
+from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_user_from_token
+from app.db.session import SessionLocal
+from app.models.chat_room import ChatRoom
+from app.models.chat_room_member import ChatRoomMember
+from app.models.message import Message
+from app.services.ws_manager import manager
+
+router = APIRouter(tags=["websocket"])
+
+
+def get_room_member(db: Session, room_id: int, user_id: int) -> ChatRoomMember | None:
+    return db.query(ChatRoomMember).filter(
+        ChatRoomMember.room_id == room_id,
+        ChatRoomMember.user_id == user_id,
+    ).first()
+
+
+@router.websocket("/ws/rooms/{room_id}")
+async def websocket_room_chat(websocket: WebSocket, room_id: int):
+    token = websocket.query_params.get("token")
+
+    db = SessionLocal()
+    try:
+        try:
+            current_user = get_user_from_token(token, db)
+        except HTTPException:
+            await websocket.close(code=1008)
+            return
+
+        room = db.get(ChatRoom, room_id)
+        if not room or not room.is_active:
+            await websocket.close(code=1008)
+            return
+
+        membership = get_room_member(db, room_id, current_user.id)
+        if not membership:
+            await websocket.close(code=1008)
+            return
+
+        await manager.connect(room_id, websocket)
+
+        await manager.send_personal_message(
+            websocket,
+            {
+                "event": "connected",
+                "data": {
+                    "room_id": room_id,
+                    "user_id": current_user.id,
+                    "username": current_user.username,
+                    "online_count": manager.room_connection_count(room_id),
+                },
+            },
+        )
+
+    finally:
+        db.close()
+
+    try:
+        while True:
+            payload = await websocket.receive_json()
+            action = payload.get("action")
+            data = payload.get("data", {})
+
+            if action == "ping":
+                await manager.send_personal_message(
+                    websocket,
+                    {
+                        "event": "pong",
+                        "data": {
+                            "room_id": room_id,
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                        },
+                    },
+                )
+                continue
+
+            if action != "send_message":
+                await manager.send_personal_message(
+                    websocket,
+                    {
+                        "event": "error",
+                        "data": {
+                            "message": "unsupported action"
+                        },
+                    },
+                )
+                continue
+
+            db = SessionLocal()
+            try:
+                room = db.get(ChatRoom, room_id)
+                if not room or not room.is_active:
+                    await manager.send_personal_message(
+                        websocket,
+                        {
+                            "event": "error",
+                            "data": {"message": "room not available"},
+                        },
+                    )
+                    continue
+
+                membership = get_room_member(db, room_id, current_user.id)
+                if not membership:
+                    await manager.send_personal_message(
+                        websocket,
+                        {
+                            "event": "error",
+                            "data": {"message": "you are not in this room"},
+                        },
+                    )
+                    continue
+
+                if membership.is_muted:
+                    await manager.send_personal_message(
+                        websocket,
+                        {
+                            "event": "error",
+                            "data": {"message": "you are muted"},
+                        },
+                    )
+                    continue
+
+                content = (data.get("content") or "").strip()
+                reply_to_message_id = data.get("reply_to_message_id")
+
+                if not content:
+                    await manager.send_personal_message(
+                        websocket,
+                        {
+                            "event": "error",
+                            "data": {"message": "content cannot be empty"},
+                        },
+                    )
+                    continue
+
+                if reply_to_message_id is not None:
+                    reply_target = db.get(Message, reply_to_message_id)
+                    if not reply_target:
+                        await manager.send_personal_message(
+                            websocket,
+                            {
+                                "event": "error",
+                                "data": {"message": "reply target not found"},
+                            },
+                        )
+                        continue
+                    if reply_target.room_id != room_id:
+                        await manager.send_personal_message(
+                            websocket,
+                            {
+                                "event": "error",
+                                "data": {"message": "reply target is in another room"},
+                            },
+                        )
+                        continue
+
+                msg = Message(
+                    room_id=room_id,
+                    sender_id=current_user.id,
+                    message_type="text",
+                    content=content,
+                    reply_to_message_id=reply_to_message_id,
+                    is_recalled=False,
+                )
+
+                db.add(msg)
+                db.commit()
+                db.refresh(msg)
+
+                outgoing = {
+                    "event": "new_message",
+                    "data": {
+                        "id": msg.id,
+                        "room_id": msg.room_id,
+                        "sender_id": msg.sender_id,
+                        "sender_username": current_user.username,
+                        "message_type": msg.message_type,
+                        "content": msg.content,
+                        "reply_to_message_id": msg.reply_to_message_id,
+                        "is_recalled": msg.is_recalled,
+                        "recalled_at": msg.recalled_at.isoformat() if msg.recalled_at else None,
+                        "created_at": msg.created_at.isoformat(),
+                    },
+                }
+
+            finally:
+                db.close()
+
+            await manager.broadcast(room_id, outgoing)
+
+    except WebSocketDisconnect:
+        manager.disconnect(room_id, websocket)
