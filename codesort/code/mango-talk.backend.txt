@@ -1,3 +1,6 @@
+MANGO TALK BACKEND CODE MERGED
+TOTAL_FILES: 28
+
 ====================================================================================================
 PATH: mango-talk/backend/app/__init__.py
 ABSOLUTE_PATH: /home/projects/mango-talk/backend/app/__init__.py

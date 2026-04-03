@@ -28,7 +28,7 @@ Target capabilities:
 - Pinia
 - Axios
 - SCSS
-- Element Plus (for selected UI components)
+- Element Plus（selected use only）
 
 ### Backend
 - Python 3.10
@@ -53,47 +53,47 @@ Target capabilities:
 
 ## Current Progress
 
-### v0.3
-Backend core chat architecture has been completed.
+### v0.4
+Frontend prototype and core frontend-backend integration have been completed.
 
-Completed modules:
-- FastAPI backend foundation
-- MySQL connection and database initialization
-- Health check endpoints
-- User registration
-- User login
-- JWT-based authentication
-- Protected current-user endpoint (`/users/me`)
-- Chat room data model
-- Private room creation
-- Group room creation
-- My room list endpoint
-- Message data model
-- Send text message endpoint
-- Room message history endpoint
-- Reply-to-message support
-- Recall message endpoint
-- WebSocket room-based real-time messaging architecture
-- Connection manager for room-level broadcast
-- WebSocket token-based authentication design
-- WebSocket test scripts
+Completed frontend modules:
+- Vue 3 + Vite frontend initialized
+- Vue Router configured
+- Pinia configured
+- Axios request instance configured
+- login page implemented
+- protected chat page implemented
+- auth bootstrap / session restore flow implemented
+- `/auth/login` integrated
+- `/users/me` integrated
+- `/rooms/mine` integrated
+- `/messages/room/{room_id}` integrated
+- `/ws/rooms/{room_id}` integrated
+- room list panel implemented
+- message list panel implemented
+- room switching behavior implemented
+- WebSocket real-time receiving implemented
+- WebSocket real-time sending implemented
+- send failure feedback improved
+- smart message auto-scroll behavior implemented
+- basic responsive mobile adaptation implemented
+- Nginx subdomain access for development environment implemented
 
-Verified backend workflows:
-- register user
-- login user
-- obtain JWT token
-- identify current user with token
-- create private room
-- create group room
-- list joined rooms
-- send text message in room
-- reply to an existing message
-- fetch room message history
-- recall own message
+Verified frontend workflows:
+- access Mango Talk from `http://mango-talk.chenglan.tech`
+- login with existing account
+- restore current user via `/users/me`
+- list joined rooms via `/rooms/mine`
+- switch rooms in the chat UI
+- load room history via `/messages/room/{room_id}`
+- send real-time messages in current room via WebSocket
+- receive real-time messages from another client in the same room
+- keep message composer visible while message area scrolls independently
+- basic mobile usage works without layout breaking
 
 Current status:
-- Mango Talk backend already supports **authentication, rooms, messages, and real-time communication architecture**
-- The project is ready to move into the **Vue frontend initialization and integration stage**
+- Mango Talk already supports **backend core chat capability + frontend interactive prototype**
+- The project has entered the stage of **standard chat product prototype completion and incremental polish**
 
 ## Project Structure
 
@@ -110,25 +110,20 @@ mango-talk/
 
 ## Run Backend Locally on Server
 
-!!!bash
+```bash
 cd /home/projects/mango-talk/backend
 source .venv/bin/activate
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-!!!
+```
+
+## Run Frontend Locally on Server
+
+```bash
+cd /home/projects/mango-talk/frontend
+npm run dev
+```
 
 ## Roadmap
-
-### v0.4 — Frontend Initialization
-- initialize Vue 3 + Vite frontend
-- configure Vue Router
-- configure Pinia
-- build login page
-- build chat layout
-- build room list panel
-- build message list panel
-- connect frontend auth flow with backend JWT
-- connect frontend room APIs and message APIs
-- connect frontend WebSocket chat flow
 
 ### v0.5 — Richer Chat Features
 - image upload
@@ -138,11 +133,13 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - room avatar / user avatar support
 - message recall event sync to frontend
 - reply preview rendering
-- basic online state and typing indicator planning
+- room creation entry in frontend
+- better mobile interaction polish
 
 ### v0.6 — Deployment and Production Hardening
-- configure Mango Talk subdomain
-- Nginx reverse proxy for backend and frontend
+- replace Vite dev serving with production frontend build
+- Nginx serve frontend static files directly
+- stable reverse proxy for backend REST API and WebSocket
 - systemd service for backend
 - HTTPS with Certbot
 - environment cleanup and production configuration
@@ -153,9 +150,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 - Secrets must never be committed.
 - `backend/.env` is local-only.
-- Frontend initialization has not started yet.
-- Current backend version is `v0.3`.
-- Existing blog deployment on `chenglan.tech` should remain isolated from Mango Talk deployment.
-- Recommended future subdomain:
-  - `talk.chenglan.tech`
-  - or `mango-talk.chenglan.tech`
+- Current project version is `v0.4`.
+- Current public development domain is `mango-talk.chenglan.tech`.
+- Existing blog deployment on `chenglan.tech` remains isolated from Mango Talk deployment.
+- Current frontend prototype already supports login, room list, message list, and room-based real-time chat.
