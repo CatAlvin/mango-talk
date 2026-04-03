@@ -4,28 +4,19 @@ from pathlib import Path
 PROJECT_ROOT = Path("/home/projects/mango-talk").resolve()
 SOURCE_ROOT = (PROJECT_ROOT / "backend" / "app").resolve()
 OUTPUT_ROOT = (PROJECT_ROOT / "codesort" / "code").resolve()
+OUTPUT_FILE = OUTPUT_ROOT / "mango-talk.backend.txt"
 
 
-def build_output_name(py_file: Path) -> str:
+def build_project_relative_path(py_file: Path) -> str:
     """
-    把 /home/projects/mango-talk/backend/app/models/user.py
-    变成 backend.app.models.user.txt
-    """
-    relative_to_project = py_file.relative_to(PROJECT_ROOT)
-    relative_without_suffix = relative_to_project.with_suffix("")
-    return ".".join(relative_without_suffix.parts) + ".txt"
-
-
-def build_header_path(py_file: Path) -> str:
-    """
-    生成写入 txt 文件开头的路径：
+    生成项目相对路径，例如：
     mango-talk/backend/app/models/user.py
     """
     relative_to_project = py_file.relative_to(PROJECT_ROOT)
     return f"{PROJECT_ROOT.name}/{relative_to_project.as_posix()}"
 
 
-def export_py_files_to_txt() -> None:
+def export_all_py_to_one_txt() -> None:
     if not SOURCE_ROOT.exists():
         raise FileNotFoundError(f"源目录不存在: {SOURCE_ROOT}")
 
@@ -37,23 +28,29 @@ def export_py_files_to_txt() -> None:
         print(f"未找到任何 .py 文件: {SOURCE_ROOT}")
         return
 
-    count = 0
+    parts = []
 
     for py_file in py_files:
-        output_name = build_output_name(py_file)
-        output_file = OUTPUT_ROOT / output_name
-        header_path = build_header_path(py_file)
+        project_path = build_project_relative_path(py_file)
+        absolute_path = str(py_file.resolve())
+        code_text = py_file.read_text(encoding="utf-8", errors="replace")
 
-        code_text = py_file.read_text(encoding="utf-8")
+        block = (
+            "=" * 100 + "\n"
+            f"PATH: {project_path}\n"
+            f"ABSOLUTE_PATH: {absolute_path}\n"
+            + "=" * 100 + "\n\n"
+            + code_text
+            + "\n\n"
+        )
+        parts.append(block)
 
-        output_content = f"{header_path}\n\n{code_text}"
+    final_text = "".join(parts)
+    OUTPUT_FILE.write_text(final_text, encoding="utf-8")
 
-        output_file.write_text(output_content, encoding="utf-8")
-        count += 1
-        print(f"[OK] {py_file} -> {output_file}")
-
-    print(f"\n完成，共导出 {count} 个文件到: {OUTPUT_ROOT}")
+    print(f"完成，共整理 {len(py_files)} 个 .py 文件")
+    print(f"输出文件: {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":
-    export_py_files_to_txt()
+    export_all_py_to_one_txt()

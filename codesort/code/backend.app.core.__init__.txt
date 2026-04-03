@@ -1,2 +1,0 @@
-mango-talk/backend/app/core/__init__.py
-
