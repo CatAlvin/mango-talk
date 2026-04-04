@@ -53,47 +53,41 @@ Target capabilities:
 
 ## Current Progress
 
-### v0.4
-Frontend prototype and core frontend-backend integration have been completed.
+### v0.5
+Mango Talk has entered the stage of **richer chat features and more product-like message interaction**.
 
-Completed frontend modules:
-- Vue 3 + Vite frontend initialized
-- Vue Router configured
-- Pinia configured
-- Axios request instance configured
-- login page implemented
-- protected chat page implemented
-- auth bootstrap / session restore flow implemented
-- `/auth/login` integrated
-- `/users/me` integrated
-- `/rooms/mine` integrated
-- `/messages/room/{room_id}` integrated
-- `/ws/rooms/{room_id}` integrated
-- room list panel implemented
-- message list panel implemented
-- room switching behavior implemented
-- WebSocket real-time receiving implemented
-- WebSocket real-time sending implemented
-- send failure feedback improved
-- smart message auto-scroll behavior implemented
-- basic responsive mobile adaptation implemented
-- Nginx subdomain access for development environment implemented
+Completed backend / frontend capabilities:
+- upload API `/uploads` completed
+- local disk file storage path works
+- `message_attachments` table and model completed
+- attachment metadata can be linked to messages
+- `/messages` now supports `text / image / file`
+- `/messages/room/{room_id}` now returns attachments with messages
+- attachment messages can be sent through WebSocket
+- attachment messages can be broadcast in real time
+- frontend supports richer attachment rendering
+- file messages render as attachment cards
+- image messages render as image previews
+- frontend upload entry added in chat composer
+- frontend now supports upload -> send attachment message workflow
+- public subdomain upload routing works through Nginx
+- recall button added for own messages
+- recall action now syncs to all clients through WebSocket event
+- recall state updates in real time without manual refresh
 
-Verified frontend workflows:
-- access Mango Talk from `http://mango-talk.chenglan.tech`
-- login with existing account
-- restore current user via `/users/me`
-- list joined rooms via `/rooms/mine`
-- switch rooms in the chat UI
-- load room history via `/messages/room/{room_id}`
-- send real-time messages in current room via WebSocket
-- receive real-time messages from another client in the same room
-- keep message composer visible while message area scrolls independently
-- basic mobile usage works without layout breaking
+Verified workflows:
+- upload a file from the chat composer
+- backend saves uploaded file to local disk
+- upload metadata is returned successfully
+- frontend sends uploaded attachment as `file` or `image` message
+- current room receives the attachment message in real time
+- historical message list still shows attachment content after refresh
+- own message can be recalled from frontend
+- other clients in the same room receive recall updates in real time
 
 Current status:
-- Mango Talk already supports **backend core chat capability + frontend interactive prototype**
-- The project has entered the stage of **standard chat product prototype completion and incremental polish**
+- Mango Talk already supports **text chat + attachment chat + real-time recall sync**
+- the project has moved beyond a plain chat prototype and is now much closer to a usable standard chat product
 
 ## Project Structure
 
@@ -126,13 +120,18 @@ npm run dev
 ## Roadmap
 
 ### v0.5 — Richer Chat Features
-- image upload
-- file upload
+Completed:
+- image upload foundation
+- file upload foundation
 - message attachment model
 - richer message rendering
-- room avatar / user avatar support
+- frontend upload entry
 - message recall event sync to frontend
-- reply preview rendering
+
+Still to do:
+- room avatar support
+- user avatar upload / display support
+- reply preview rendering upgrade
 - room creation entry in frontend
 - better mobile interaction polish
 
@@ -150,7 +149,7 @@ npm run dev
 
 - Secrets must never be committed.
 - `backend/.env` is local-only.
-- Current project version is `v0.4`.
+- Current project version is `v0.5`.
 - Current public development domain is `mango-talk.chenglan.tech`.
 - Existing blog deployment on `chenglan.tech` remains isolated from Mango Talk deployment.
-- Current frontend prototype already supports login, room list, message list, and room-based real-time chat.
+- Current Mango Talk prototype already supports login, room list, message list, room-based real-time chat, attachment messages, and real-time recall sync.

@@ -1,5 +1,8 @@
 from collections import defaultdict
+
 from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect
+
 
 class ConnectionManager:
     def __init__(self):
@@ -16,8 +19,12 @@ class ConnectionManager:
         if not connections and room_id in self.active_connections:
             del self.active_connections[room_id]
 
-    async def send_personal_message(self, websocket: WebSocket, payload: dict):
-        await websocket.send_json(payload)
+    async def send_personal_message(self, websocket: WebSocket, payload: dict) -> bool:
+        try:
+            await websocket.send_json(payload)
+            return True
+        except (WebSocketDisconnect, RuntimeError, Exception):
+            return False
 
     async def broadcast(self, room_id: int, payload: dict):
         connections = list(self.active_connections.get(room_id, []))

@@ -1,7 +1,8 @@
 from datetime import datetime
 from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, func, text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -47,4 +48,11 @@ class Message(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+    attachments: Mapped[list["MessageAttachment"]] = relationship(
+        "MessageAttachment",
+        back_populates="message",
+        cascade="all, delete-orphan",
+        order_by="MessageAttachment.id.asc()",
     )

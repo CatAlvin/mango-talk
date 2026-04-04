@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Settings:
     APP_NAME = os.getenv("APP_NAME", "Mango Talk API")
     APP_ENV = os.getenv("APP_ENV", "development")
@@ -19,11 +20,19 @@ class Settings:
     JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
 
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+    UPLOAD_ROOT = os.getenv("UPLOAD_ROOT", os.path.join(PROJECT_ROOT, "uploads"))
+    UPLOAD_URL_PREFIX = os.getenv("UPLOAD_URL_PREFIX", "/uploads")
+    MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(50 * 1024 * 1024)))
+
     @property
     def DATABASE_URL(self) -> str:
         return (
             f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}"
             f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}?charset=utf8mb4"
         )
+
 
 settings = Settings()
