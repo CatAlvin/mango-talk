@@ -401,10 +401,30 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
 
 <template>
   <div class="chat-page">
-    <aside class="sidebar">
+    <!-- mobile overlay -->
+    <div
+      v-if="sidebarOpen"
+      class="sidebar-overlay"
+      @click="sidebarOpen = false"
+    ></div>
+
+    <!-- mobile hamburger -->
+    <button
+      class="mobile-menu-btn"
+      @click="sidebarOpen = !sidebarOpen"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
       <div class="brand-block">
-        <h2>Mango Talk</h2>
-        <p class="muted">Version 0.5 附件消息阶段</p>
+        <div class="brand-logo">
+          <svg viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="10" fill="url(#sb)"/><path d="M10 15.5c0-3.3 3.6-6 7.5-6s7.5 2.7 7.5 6-3.6 6-7.5 6c-1 0-1.9-.13-2.75-.38L12 23l.88-2.65C11.56 19.16 10 17.44 10 15.5z" fill="#fff" fill-opacity=".9"/><defs><linearGradient id="sb" x1="0" y1="0" x2="36" y2="36"><stop stop-color="#fb923c"/><stop offset="1" stop-color="#f97316"/></linearGradient></defs></svg>
+        </div>
+        <div>
+          <h2>Mango Talk</h2>
+          <p class="muted">v0.5 附件消息阶段</p>
+        </div>
       </div>
 
       <div class="user-card">
@@ -413,20 +433,23 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
         </div>
         <div class="user-meta">
           <p class="username">{{ authStore.user?.username || '未登录用户' }}</p>
-          <p class="role">角色：{{ authStore.user?.role || 'unknown' }}</p>
+          <p class="role">{{ authStore.user?.role || 'unknown' }}</p>
         </div>
+        <div class="user-online-dot"></div>
       </div>
 
       <div class="room-section">
         <div class="room-section-header">
           <h3>我的房间</h3>
           <button class="refresh-btn" @click="handleRefreshRooms" :disabled="roomStore.loading">
-            {{ roomStore.loading ? '加载中...' : '刷新' }}
+            <svg v-if="!roomStore.loading" viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+            <span v-else class="spinner-tiny"></span>
           </button>
         </div>
 
         <div v-if="roomStore.loading && roomStore.rooms.length === 0" class="room-empty">
-          正在加载房间列表...
+          <span class="spinner-tiny"></span>
+          <span>正在加载房间列表...</span>
         </div>
 
         <div v-else-if="roomStore.rooms.length === 0" class="room-empty">
@@ -439,23 +462,23 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
             :key="room.id"
             class="room-item"
             :class="{ active: room.id === roomStore.selectedRoomId }"
-            @click="handleSelectRoom(room.id)"
+            @click="handleSelectRoom(room.id); sidebarOpen = false"
           >
-            <div class="room-avatar">
+            <div class="room-avatar" :class="room.type">
               {{ getRoomInitial(room) }}
             </div>
 
             <div class="room-info">
               <div class="room-top">
                 <p class="room-name">{{ room.display_name }}</p>
-                <span class="room-type" :class="room.type">
+                <span class="room-type-badge" :class="room.type">
                   {{ room.type === 'private' ? '私聊' : '群聊' }}
                 </span>
               </div>
 
               <div class="room-bottom">
                 <span>{{ room.member_count }} 人</span>
-                <span>我的角色：{{ room.my_role }}</span>
+                <span class="room-role">{{ room.my_role }}</span>
               </div>
             </div>
           </button>
@@ -463,6 +486,7 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
       </div>
 
       <button class="logout-btn" @click="handleLogout">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm7.707 4.293a1 1 0 010 1.414L9.414 10l1.293 1.293a1 1 0 01-1.414 1.414l-2-2a1 1 0 010-1.414l2-2a1 1 0 011.414 0z" clip-rule="evenodd"/><path d="M14 10a1 1 0 01-1 1H9a1 1 0 110-2h4a1 1 0 011 1z"/></svg>
         退出登录
       </button>
     </aside>
@@ -474,32 +498,37 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
             <div class="chat-header-text">
               <h2>{{ roomStore.selectedRoom.display_name }}</h2>
               <p>
-                类型：{{ roomStore.selectedRoom.type === 'private' ? '私聊' : '群聊' }}
-                · 成员数：{{ roomStore.selectedRoom.member_count }}
-                · 我的角色：{{ roomStore.selectedRoom.my_role }}
+                {{ roomStore.selectedRoom.type === 'private' ? '私聊' : '群聊' }}
+                · {{ roomStore.selectedRoom.member_count }} 位成员
+                · {{ roomStore.selectedRoom.my_role }}
               </p>
             </div>
 
             <div class="ws-status" :class="wsStatusClass">
+              <span class="ws-dot"></span>
               {{ wsStatusText }}
             </div>
           </div>
         </template>
 
         <template v-else>
-          <h2>聊天主页</h2>
-          <p>请先从左侧选择一个房间</p>
+          <div class="empty-header">
+            <h2>欢迎回来</h2>
+            <p>请从左侧选择一个房间开始聊天</p>
+          </div>
         </template>
       </header>
 
       <section class="message-list">
         <template v-if="roomStore.selectedRoom">
           <div v-if="isCurrentRoomLoading" class="message-empty">
-            正在加载消息记录...
+            <span class="spinner"></span>
+            <span>正在加载消息记录...</span>
           </div>
 
           <div v-else-if="currentMessages.length === 0" class="message-empty">
-            当前房间还没有消息
+            <svg viewBox="0 0 48 48" fill="none" width="48" height="48" style="opacity:0.4"><rect x="4" y="8" width="40" height="28" rx="6" stroke="currentColor" stroke-width="2"/><path d="M4 30l8-6 6 4 10-8 16 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span>当前房间还没有消息，发送第一条吧</span>
           </div>
 
           <div v-else class="message-area">
@@ -514,132 +543,152 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
                 class="message-row"
                 :class="{ mine: isMine(message) }"
               >
-                <div class="message-meta">
-                  <span class="sender">
-                    {{ getSenderLabel(message) }}
-                  </span>
-                  <span class="time">
-                    {{ formatTime(message.created_at) }}
-                  </span>
+                <div class="message-avatar-col" v-if="!isMine(message)">
+                  <div class="msg-avatar">{{ getSenderLabel(message).charAt(0) }}</div>
                 </div>
 
-                <div
-                  class="message-bubble"
-                  :class="{
-                    mine: isMine(message),
-                    recalled: message.is_recalled
-                  }"
-                >
-                  <p v-if="message.reply_to_message_id" class="reply-tip">
-                    回复消息 #{{ message.reply_to_message_id }}
-                  </p>
+                <div class="message-body">
+                  <div class="message-meta">
+                    <span class="sender">
+                      {{ getSenderLabel(message) }}
+                    </span>
+                    <span class="time">
+                      {{ formatTime(message.created_at) }}
+                    </span>
+                  </div>
 
-                  <p v-if="message.is_recalled" class="recalled-text">
-                    该消息已被撤回
-                  </p>
-
-                  <template v-else>
-                    <p v-if="message.content" class="message-content">
-                      {{ message.content }}
-                    </p>
-
-                    <div
-                      v-if="message.message_type === 'image' && getImageAttachments(message).length > 0"
-                      class="attachment-list image-list"
-                    >
-                      <a
-                        v-for="attachment in getImageAttachments(message)"
-                        :key="attachment.id || attachment.stored_name"
-                        class="image-attachment-link"
-                        :href="attachment.file_url"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <img
-                          class="image-attachment-preview"
-                          :src="attachment.file_url"
-                          :alt="attachment.original_name"
-                        />
-                      </a>
-                    </div>
-
-                    <div
-                      v-if="message.message_type === 'file' && getFileAttachments(message).length > 0"
-                      class="attachment-list file-list"
-                    >
-                      <a
-                        v-for="attachment in getFileAttachments(message)"
-                        :key="attachment.id || attachment.stored_name"
-                        class="file-attachment-card"
-                        :href="attachment.file_url"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <div class="file-attachment-icon">📎</div>
-                        <div class="file-attachment-meta">
-                          <p class="file-attachment-name">
-                            {{ attachment.original_name }}
-                          </p>
-                          <p class="file-attachment-sub">
-                            {{ attachment.mime_type || '未知类型' }} · {{ formatFileSize(attachment.file_size) }}
-                          </p>
-                        </div>
-                      </a>
-                    </div>
-
-                    <p
-                      v-if="
-                        !message.content &&
-                        getMessageAttachments(message).length === 0 &&
-                        message.message_type !== 'text'
-                      "
-                      class="message-content empty-message-content"
-                    >
-                      该消息暂无可展示内容
-                    </p>
-                  </template>
-                </div>
-                <div
-                  v-if="canRecallMessage(message)"
-                  class="message-actions"
-                  :class="{ mine: isMine(message) }"
-                >
-                  <button
-                    class="recall-btn"
-                    type="button"
-                    :disabled="recallingMessageId === message.id"
-                    @click="handleRecallMessage(message)"
+                  <div
+                    class="message-bubble"
+                    :class="{
+                      mine: isMine(message),
+                      recalled: message.is_recalled
+                    }"
                   >
-                    {{ recallingMessageId === message.id ? '撤回中...' : '撤回' }}
-                  </button>
+                    <p v-if="message.reply_to_message_id" class="reply-tip">
+                      回复消息 #{{ message.reply_to_message_id }}
+                    </p>
+
+                    <p v-if="message.is_recalled" class="recalled-text">
+                      该消息已被撤回
+                    </p>
+
+                    <template v-else>
+                      <p v-if="message.content" class="message-content">
+                        {{ message.content }}
+                      </p>
+
+                      <div
+                        v-if="message.message_type === 'image' && getImageAttachments(message).length > 0"
+                        class="attachment-list image-list"
+                      >
+                        <a
+                          v-for="attachment in getImageAttachments(message)"
+                          :key="attachment.id || attachment.stored_name"
+                          class="image-attachment-link"
+                          :href="attachment.file_url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <img
+                            class="image-attachment-preview"
+                            :src="attachment.file_url"
+                            :alt="attachment.original_name"
+                          />
+                        </a>
+                      </div>
+
+                      <div
+                        v-if="message.message_type === 'file' && getFileAttachments(message).length > 0"
+                        class="attachment-list file-list"
+                      >
+                        <a
+                          v-for="attachment in getFileAttachments(message)"
+                          :key="attachment.id || attachment.stored_name"
+                          class="file-attachment-card"
+                          :href="attachment.file_url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <div class="file-attachment-icon">
+                            <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>
+                          </div>
+                          <div class="file-attachment-meta">
+                            <p class="file-attachment-name">
+                              {{ attachment.original_name }}
+                            </p>
+                            <p class="file-attachment-sub">
+                              {{ attachment.mime_type || '未知类型' }} · {{ formatFileSize(attachment.file_size) }}
+                            </p>
+                          </div>
+                        </a>
+                      </div>
+
+                      <p
+                        v-if="
+                          !message.content &&
+                          getMessageAttachments(message).length === 0 &&
+                          message.message_type !== 'text'
+                        "
+                        class="message-content empty-message-content"
+                      >
+                        该消息暂无可展示内容
+                      </p>
+                    </template>
+                  </div>
+
+                  <div
+                    v-if="canRecallMessage(message)"
+                    class="message-actions"
+                    :class="{ mine: isMine(message) }"
+                  >
+                    <button
+                      class="recall-btn"
+                      type="button"
+                      :disabled="recallingMessageId === message.id"
+                      @click="handleRecallMessage(message)"
+                    >
+                      {{ recallingMessageId === message.id ? '撤回中...' : '撤回' }}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <button
-              v-if="showScrollToBottom"
-              class="scroll-to-bottom-btn"
-              type="button"
-              @click="handleScrollToBottom"
-            >
-              {{ hasUnreadIncoming ? '有新消息，回到底部' : '回到底部' }}
-            </button>
+            <Transition name="fade-up">
+              <button
+                v-if="showScrollToBottom"
+                class="scroll-to-bottom-btn"
+                type="button"
+                @click="handleScrollToBottom"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                {{ hasUnreadIncoming ? '有新消息' : '回到底部' }}
+              </button>
+            </Transition>
           </div>
         </template>
 
-        <div v-else class="message-empty">
-          请先从左侧选择一个房间
+        <div v-else class="message-empty welcome-empty">
+          <div class="welcome-icon">
+            <svg viewBox="0 0 64 64" fill="none" width="64" height="64">
+              <circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="1.5" opacity="0.15"/>
+              <path d="M20 28c0-5.5 5.4-10 12-10s12 4.5 12 10-5.4 10-12 10c-1.5 0-3-.2-4.4-.6L22 40l1.4-4.3C21.3 33.7 20 31 20 28z" stroke="currentColor" stroke-width="1.8" fill="none" opacity="0.35"/>
+            </svg>
+          </div>
+          <p class="welcome-text">选择一个房间开始聊天</p>
         </div>
       </section>
 
       <footer class="message-composer" v-if="roomStore.selectedRoom">
         <div class="composer-box">
-          <textarea
-            v-model="draftMessage"
-            class="composer-input"
-            :placeholder="composerPlaceholder"
-            @keydown="handleComposerKeydown"
-          ></textarea>
+          <div class="composer-input-row">
+            <textarea
+              v-model="draftMessage"
+              class="composer-input"
+              :placeholder="composerPlaceholder"
+              @keydown="handleComposerKeydown"
+            ></textarea>
+          </div>
 
           <input
             ref="fileInputRef"
@@ -654,13 +703,13 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
                 {{ sendError }}
               </p>
               <p v-else-if="uploading" class="send-pending">
-                正在上传文件，上传成功后会自动发送到当前房间
+                正在上传文件，完成后自动发送
               </p>
               <p v-else-if="sending" class="send-pending">
-                正在等待服务器确认，这条消息确认成功后才会清空输入框
+                等待服务器确认...
               </p>
               <p v-else class="send-hint">
-                Enter 发送，Shift + Enter 换行，也可以直接上传文件或图片
+                Enter 发送 · Shift+Enter 换行
               </p>
             </div>
 
@@ -670,8 +719,10 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
                 type="button"
                 :disabled="wsStatus !== 'connected' || uploading || sending"
                 @click="handlePickFile"
+                title="上传文件或图片"
               >
-                {{ uploading ? '上传中...' : '上传文件/图片' }}
+                <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>
+                <span class="upload-label">{{ uploading ? '上传中...' : '文件' }}</span>
               </button>
 
               <button
@@ -688,7 +739,8 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
                 :disabled="!canSend"
                 @click="handleSendMessage"
               >
-                {{ sending ? '等待确认...' : '发送' }}
+                <svg v-if="!sending" viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
+                <span v-else class="spinner-tiny"></span>
               </button>
             </div>
           </div>
@@ -720,12 +772,14 @@ const sending = ref(false)
 const uploading = ref(false)
 const recallingMessageId = ref(null)
 
+const sidebarOpen = ref(false)
+
 const pendingMessageText = ref('')
 const pendingAttachmentStoredName = ref('')
 const pendingAckTimer = ref(null)
 
 const wsRef = ref(null)
-const wsStatus = ref('idle') // idle | connecting | connected | error | closed
+const wsStatus = ref('idle')
 
 const isNearBottom = ref(true)
 const showScrollToBottom = ref(false)
@@ -770,7 +824,7 @@ const composerPlaceholder = computed(() => {
   }
 
   if (wsStatus.value === 'connected') {
-    return '输入消息，按 Enter 发送，Shift + Enter 换行'
+    return '输入消息...'
   }
 
   if (wsStatus.value === 'connecting') {
@@ -783,13 +837,13 @@ const composerPlaceholder = computed(() => {
 const wsStatusText = computed(() => {
   switch (wsStatus.value) {
     case 'connecting':
-      return '实时连接中'
+      return '连接中'
     case 'connected':
-      return '实时已连接'
+      return '已连接'
     case 'error':
       return '连接异常'
     case 'closed':
-      return '连接已关闭'
+      return '已断开'
     default:
       return '未连接'
   }
@@ -1326,82 +1380,162 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Outfit:wght@600;700;800&display=swap');
+
+/* ========== TOKENS ========== */
 .chat-page {
+  --c-orange: #f97316;
+  --c-orange-hover: #ea580c;
+  --c-orange-subtle: #fff7ed;
+  --c-orange-border: #fed7aa;
+  --c-cyan: #06b6d4;
+  --c-cyan-deep: #0891b2;
+  --c-cyan-subtle: #ecfeff;
+  --c-cyan-border: #a5f3fc;
+  --c-sidebar-bg: #0c1222;
+  --c-sidebar-surface: rgba(255,255,255,0.05);
+  --c-sidebar-text: rgba(255,255,255,0.7);
+  --c-sidebar-text-dim: rgba(255,255,255,0.35);
+  --c-main-bg: #f0f4f8;
+  --c-surface: #ffffff;
+  --c-text: #0f172a;
+  --c-text-secondary: #64748b;
+  --c-border: #e2e8f0;
+  --c-danger: #ef4444;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+
   display: flex;
   height: 100vh;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--c-main-bg);
   overflow: hidden;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  color: var(--c-text);
 }
 
+/* ========== SIDEBAR ========== */
 .sidebar {
-  width: 340px;
-  padding: 24px 20px;
-  background: #fff;
-  border-right: 1px solid #e2e8f0;
+  width: 320px;
+  padding: 20px 16px;
+  background: var(--c-sidebar-bg);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   min-width: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 20;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(6,182,212,0.3) 0%, rgba(249,115,22,0.3) 100%);
+  }
 }
 
 .brand-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 0 4px;
+
   h2 {
     margin: 0;
-    font-size: 28px;
-    color: #f97316;
+    font-family: 'Outfit', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--c-orange) 30%, var(--c-cyan) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
   .muted {
-    margin: 8px 0 20px;
-    color: #94a3b8;
-    font-size: 13px;
+    margin: 2px 0 0;
+    color: var(--c-sidebar-text-dim);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+  }
+}
+
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+
+  svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 2px 8px rgba(249,115,22,0.3));
   }
 }
 
 .user-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  margin-bottom: 18px;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: var(--c-sidebar-surface);
+  border: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 20px;
+  position: relative;
 }
 
 .avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: #fb923c;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--c-orange), var(--c-cyan));
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
   font-weight: 700;
   flex-shrink: 0;
 }
 
+.user-online-dot {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34,197,94,0.5);
+}
+
 .user-meta {
   min-width: 0;
+  flex: 1;
 
   .username {
-    margin: 0 0 6px;
-    color: #0f172a;
-    font-size: 16px;
+    margin: 0 0 2px;
+    color: #fff;
+    font-size: 14px;
     font-weight: 700;
     word-break: break-word;
   }
 
   .role {
     margin: 0;
-    color: #64748b;
-    font-size: 14px;
+    color: var(--c-sidebar-text-dim);
+    font-size: 12px;
   }
 }
 
+/* ---- Room list ---- */
 .room-section {
   flex: 1;
   min-height: 0;
@@ -1414,85 +1548,117 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
-  gap: 12px;
+  padding: 0 4px;
 
   h3 {
     margin: 0;
-    font-size: 16px;
-    color: #0f172a;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-sidebar-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 }
 
 .refresh-btn {
-  height: 32px;
-  padding: 0 12px;
+  width: 28px;
+  height: 28px;
   border: none;
-  border-radius: 10px;
-  background: #f1f5f9;
-  color: #334155;
-  font-size: 13px;
+  border-radius: 8px;
+  background: var(--c-sidebar-surface);
+  color: var(--c-sidebar-text);
   cursor: pointer;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover:not(:disabled) {
+    background: rgba(255,255,255,0.1);
+    color: var(--c-cyan);
+  }
 
   &:disabled {
-    opacity: 0.7;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 }
 
 .room-empty {
   padding: 16px;
-  border-radius: 14px;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  background: var(--c-sidebar-surface);
+  color: var(--c-sidebar-text-dim);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .room-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   overflow-y: auto;
   padding-right: 4px;
   min-width: 0;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+  }
 }
 
 .room-item {
   width: 100%;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  border-radius: 16px;
-  padding: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-md);
+  padding: 12px;
   display: flex;
   gap: 12px;
   text-align: left;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.2s ease;
   min-width: 0;
+  color: inherit;
 
   &:hover {
-    border-color: #fdba74;
-    box-shadow: 0 8px 18px rgba(249, 115, 22, 0.08);
+    background: var(--c-sidebar-surface);
   }
 
   &.active {
-    border-color: #fb923c;
-    background: #fff7ed;
+    background: rgba(6,182,212,0.1);
+    border-color: rgba(6,182,212,0.2);
   }
 }
 
 .room-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: #f97316;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
   font-weight: 700;
   flex-shrink: 0;
+
+  &.private {
+    background: linear-gradient(135deg, var(--c-cyan), #0e7490);
+  }
+
+  &.group {
+    background: linear-gradient(135deg, var(--c-orange), #c2410c);
+  }
 }
 
 .room-info {
@@ -1504,57 +1670,76 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   min-width: 0;
 }
 
 .room-name {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.room-type {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
+.room-type-badge {
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
   flex-shrink: 0;
+  letter-spacing: 0.02em;
 
   &.private {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: rgba(6,182,212,0.15);
+    color: var(--c-cyan);
   }
 
   &.group {
-    background: #ede9fe;
-    color: #6d28d9;
+    background: rgba(249,115,22,0.15);
+    color: var(--c-orange);
   }
 }
 
 .room-bottom {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  font-size: 12px;
-  color: #64748b;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--c-sidebar-text-dim);
+}
+
+.room-role {
+  color: rgba(6,182,212,0.7);
 }
 
 .logout-btn {
-  margin-top: 18px;
-  height: 42px;
-  border: none;
-  border-radius: 14px;
-  background: #0f172a;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
+  margin-top: 12px;
+  height: 40px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--c-sidebar-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover {
+    background: rgba(239,68,68,0.1);
+    color: #fca5a5;
+    border-color: rgba(239,68,68,0.2);
+  }
 }
 
+/* ========== MAIN AREA ========== */
 .chat-main {
   flex: 1;
   display: flex;
@@ -1565,20 +1750,23 @@ onBeforeUnmount(() => {
 }
 
 .chat-header {
-  padding: 24px 28px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 18px 28px;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
 
   h2 {
-    margin: 0 0 10px;
-    color: #0f172a;
-    font-size: 24px;
+    margin: 0 0 4px;
+    color: var(--c-text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
   }
 
   p {
     margin: 0;
-    color: #64748b;
-    line-height: 1.6;
+    color: var(--c-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
   }
 }
 
@@ -1593,43 +1781,81 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.empty-header h2 {
+  margin-bottom: 4px;
+}
+
 .ws-status {
   flex-shrink: 0;
-  padding: 6px 12px;
+  padding: 5px 12px;
   border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 
-  &.idle,
-  &.closed {
-    background: #e2e8f0;
-    color: #475569;
+  .ws-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  &.idle .ws-dot,
+  &.closed .ws-dot {
+    background: #94a3b8;
+  }
+
+  &.connecting .ws-dot {
+    background: #f59e0b;
+    animation: pulse-dot 1.2s ease-in-out infinite;
+  }
+
+  &.connected .ws-dot {
+    background: #22c55e;
+    box-shadow: 0 0 4px rgba(34,197,94,0.5);
+  }
+
+  &.error .ws-dot {
+    background: var(--c-danger);
+  }
+
+  &.idle, &.closed {
+    background: #f1f5f9;
+    color: #64748b;
   }
 
   &.connecting {
-    background: #fef3c7;
+    background: #fffbeb;
     color: #b45309;
   }
 
   &.connected {
-    background: #dcfce7;
+    background: #f0fdf4;
     color: #15803d;
   }
 
   &.error {
-    background: #fee2e2;
+    background: #fef2f2;
     color: #b91c1c;
   }
 }
 
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ========== MESSAGE LIST ========== */
 .message-list {
   flex: 1 1 0;
-  padding: 24px 28px;
+  padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background: var(--c-main-bg);
 }
 
 .message-area {
@@ -1641,11 +1867,33 @@ onBeforeUnmount(() => {
 }
 
 .message-empty {
-  padding: 18px;
-  border-radius: 16px;
-  background: #fff;
-  color: #64748b;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  margin: 24px;
+  padding: 32px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  color: var(--c-text-secondary);
+  box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.welcome-empty {
+  flex: 1;
+  margin: 24px;
+  justify-content: center;
+}
+
+.welcome-icon {
+  color: var(--c-text-secondary);
+}
+
+.welcome-text {
+  margin: 0;
+  font-size: 15px;
+  color: var(--c-text-secondary);
 }
 
 .message-scroll {
@@ -1654,74 +1902,140 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding-right: 4px;
+  gap: 8px;
+  padding: 20px 28px;
+
+  &::-webkit-scrollbar {
+    width: 5px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.08);
+    border-radius: 3px;
+  }
 }
 
 .scroll-to-bottom-btn {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 12px;
   border: none;
   border-radius: 999px;
-  padding: 10px 14px;
-  background: rgba(15, 23, 42, 0.92);
+  padding: 8px 18px;
+  background: var(--c-sidebar-bg);
   color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(15,23,42,0.2);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
 }
 
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: all 0.25s ease;
+}
+.fade-up-enter-from,
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+/* ---- Message rows ---- */
 .message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  &.mine {
+    flex-direction: row-reverse;
+
+    .message-body {
+      align-items: flex-end;
+    }
+
+    .message-meta {
+      flex-direction: row-reverse;
+    }
+  }
+}
+
+.message-avatar-col {
+  flex-shrink: 0;
+  padding-top: 20px;
+}
+
+.msg-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--c-cyan), var(--c-cyan-deep));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.message-body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-
-  &.mine {
-    align-items: flex-end;
-  }
+  max-width: min(72%, 540px);
+  min-width: 0;
 }
 
 .message-meta {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
-  font-size: 12px;
+  margin-bottom: 4px;
+  font-size: 11px;
   color: #94a3b8;
 
   .sender {
     font-weight: 600;
-    color: #64748b;
+    color: var(--c-text-secondary);
   }
 }
 
 .message-bubble {
-  max-width: min(72%, 560px);
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-  border: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 16px 16px 16px 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: 0 1px 3px rgba(15,23,42,0.05);
+  border: 1px solid var(--c-border);
+  word-break: break-word;
 
   &.mine {
-    background: #f97316;
+    background: linear-gradient(135deg, var(--c-orange) 0%, var(--c-orange-hover) 100%);
     color: #fff;
-    border-color: #f97316;
+    border-color: transparent;
+    border-radius: 16px 16px 4px 16px;
+    box-shadow: 0 2px 8px rgba(249,115,22,0.2);
   }
 
   &.recalled {
-    background: #f8fafc;
+    background: var(--c-main-bg);
     color: #94a3b8;
     border-style: dashed;
+    border-color: var(--c-border);
   }
 }
 
 .message-actions {
   display: flex;
-  margin-top: 6px;
+  margin-top: 4px;
 
   &.mine {
     justify-content: flex-end;
@@ -1732,42 +2046,56 @@ onBeforeUnmount(() => {
   border: none;
   background: transparent;
   color: #94a3b8;
-  font-size: 12px;
+  font-family: inherit;
+  font-size: 11px;
   cursor: pointer;
-  padding: 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
 
   &:hover:enabled {
-    color: #f97316;
+    color: var(--c-danger);
+    background: rgba(239,68,68,0.06);
   }
 
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 }
 
 .reply-tip {
-  margin: 0 0 8px;
-  font-size: 12px;
-  opacity: 0.85;
+  margin: 0 0 6px;
+  font-size: 11px;
+  opacity: 0.7;
+  padding: 4px 8px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.mine .reply-tip {
+  background: rgba(255,255,255,0.15);
 }
 
 .message-content,
 .recalled-text {
   margin: 0;
-  line-height: 1.7;
+  line-height: 1.65;
+  font-size: 14px;
   word-break: break-word;
 }
 
 .empty-message-content {
-  opacity: 0.76;
+  opacity: 0.65;
 }
 
+/* ---- Attachments ---- */
 .attachment-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .image-list {
@@ -1777,63 +2105,64 @@ onBeforeUnmount(() => {
 .image-attachment-link {
   display: block;
   width: fit-content;
-  max-width: min(280px, 100%);
-  border-radius: 14px;
+  max-width: min(260px, 100%);
+  border-radius: 12px;
   overflow: hidden;
 }
 
 .image-attachment-preview {
   display: block;
   width: 100%;
-  max-width: 280px;
-  max-height: 320px;
+  max-width: 260px;
+  max-height: 300px;
   object-fit: cover;
-  border-radius: 14px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid rgba(226,232,240,0.8);
+  background: var(--c-main-bg);
 }
 
 .message-bubble.mine .image-attachment-preview {
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255,255,255,0.2);
 }
 
 .file-attachment-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 14px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
   text-decoration: none;
   color: inherit;
-  background: rgba(248, 250, 252, 0.9);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
+  background: rgba(248,250,252,0.9);
+  border: 1px solid var(--c-border);
+  transition: transform 0.15s, box-shadow 0.15s;
 
-.file-attachment-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15,23,42,0.08);
+  }
 }
 
 .message-bubble.mine .file-attachment-card {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .file-attachment-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.08);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--c-cyan-subtle);
+  color: var(--c-cyan-deep);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 18px;
 }
 
 .message-bubble.mine .file-attachment-icon {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255,255,255,0.15);
+  color: #fff;
 }
 
 .file-attachment-meta {
@@ -1842,57 +2171,72 @@ onBeforeUnmount(() => {
 }
 
 .file-attachment-name {
-  margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 700;
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
   word-break: break-word;
 }
 
 .file-attachment-sub {
   margin: 0;
-  font-size: 12px;
-  opacity: 0.84;
+  font-size: 11px;
+  opacity: 0.7;
   word-break: break-word;
 }
 
+/* ========== COMPOSER ========== */
 .message-composer {
   flex-shrink: 0;
-  padding: 18px 24px 22px;
-  background: #ffffff;
-  border-top: 1px solid #e2e8f0;
+  padding: 14px 24px 18px;
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-border);
 }
 
 .composer-box {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .file-input-hidden {
   display: none;
 }
 
+.composer-input-row {
+  position: relative;
+}
+
 .composer-input {
   width: 100%;
-  min-height: 88px;
-  resize: vertical;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 14px 16px;
-  font-size: 15px;
+  min-height: 48px;
+  max-height: 160px;
+  resize: none;
+  border: 1.5px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 14px;
   line-height: 1.6;
+  color: var(--c-text);
   outline: none;
   box-sizing: border-box;
+  background: var(--c-main-bg);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+
+  &::placeholder {
+    color: #94a3b8;
+  }
 
   &:focus {
-    border-color: #fb923c;
-    box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.12);
+    border-color: var(--c-cyan);
+    background: var(--c-surface);
+    box-shadow: 0 0 0 3px rgba(6,182,212,0.1);
   }
 }
 
 .composer-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -1906,12 +2250,12 @@ onBeforeUnmount(() => {
 .send-pending,
 .send-hint {
   margin: 0;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
 .send-error {
-  color: #dc2626;
+  color: var(--c-danger);
 }
 
 .send-pending {
@@ -1919,219 +2263,263 @@ onBeforeUnmount(() => {
 }
 
 .send-hint {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .composer-buttons {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .upload-btn {
-  height: 42px;
-  min-width: 132px;
-  border: 1px solid #fed7aa;
-  border-radius: 14px;
-  background: #fff7ed;
-  color: #c2410c;
-  font-size: 14px;
-  font-weight: 700;
+  height: 40px;
+  padding: 0 14px;
+  border: 1.5px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.2s, color 0.2s;
+
+  &:hover:not(:disabled) {
+    border-color: var(--c-cyan);
+    color: var(--c-cyan-deep);
+  }
 
   &:disabled {
-    opacity: 0.65;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 }
 
 .reconnect-btn {
-  height: 42px;
-  min-width: 108px;
-  border: 1px solid #cbd5e1;
-  border-radius: 14px;
-  background: #fff;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 700;
+  height: 40px;
+  padding: 0 16px;
+  border: 1.5px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: var(--c-orange);
+    color: var(--c-orange);
+  }
 }
 
 .send-btn {
-  height: 42px;
-  min-width: 108px;
+  width: 44px;
+  height: 40px;
   border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--c-orange) 0%, var(--c-orange-hover) 100%);
   color: #fff;
-  font-size: 14px;
-  font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+  box-shadow: 0 2px 8px rgba(249,115,22,0.25);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(249,115,22,0.35);
+  }
 
   &:disabled {
-    opacity: 0.65;
+    opacity: 0.45;
     cursor: not-allowed;
+    box-shadow: none;
   }
 }
 
+/* ========== SPINNERS ========== */
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid var(--c-border);
+  border-top-color: var(--c-cyan);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.spinner-tiny {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.25);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========== MOBILE ========== */
+.mobile-menu-btn {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
 @media (max-width: 900px) {
-  .chat-page {
-    flex-direction: column;
-    height: auto;
-    min-height: 100vh;
-    overflow: auto;
-  }
-
   .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 18px 16px;
-  }
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    box-shadow: none;
 
-  .room-section {
-    min-height: auto;
-  }
-
-  .room-list {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 4px;
-    padding-right: 0;
-  }
-
-  .room-item {
-    min-width: 240px;
-    max-width: 280px;
-    flex-shrink: 0;
-  }
-
-  .logout-btn {
-    margin-top: 14px;
-  }
-
-  .chat-main {
-    min-height: 60vh;
-  }
-
-  .chat-header {
-    padding: 18px 16px;
-
-    h2 {
-      font-size: 22px;
+    &.open {
+      transform: translateX(0);
+      box-shadow: 8px 0 30px rgba(0,0,0,0.3);
     }
   }
 
-  .message-list {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    animation: fade-in 0.2s ease;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 30;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 12px;
+    background: var(--c-surface);
+    box-shadow: 0 2px 10px rgba(15,23,42,0.1);
+    color: var(--c-text);
+    cursor: pointer;
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  .chat-header {
+    padding: 16px 16px 16px 64px;
+  }
+
+  .message-scroll {
     padding: 16px;
   }
 
   .message-composer {
-    padding: 14px 16px 18px;
+    padding: 12px 16px 16px;
   }
 
-  .message-bubble {
-    max-width: 86%;
+  .message-body {
+    max-width: 85%;
   }
 }
 
 @media (max-width: 640px) {
-  .brand-block {
-    h2 {
-      font-size: 24px;
-    }
-  }
-
-  .user-card {
-    padding: 14px;
-  }
-
-  .room-section-header {
-    align-items: flex-start;
-  }
-
-  .room-item {
-    min-width: 220px;
+  .chat-header {
+    h2 { font-size: 18px; }
+    p { font-size: 12px; }
   }
 
   .chat-header-main {
     flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
   }
 
-  .ws-status {
-    align-self: flex-start;
+  .message-scroll {
+    padding: 12px;
+    gap: 6px;
   }
 
-  .chat-header {
-    h2 {
-      font-size: 20px;
-    }
-
-    p {
-      font-size: 14px;
-    }
-  }
-
-  .message-list {
-    padding: 14px 12px;
+  .message-body {
+    max-width: 88%;
   }
 
   .message-bubble {
-    max-width: 92%;
-    padding: 10px 12px;
+    padding: 9px 12px;
+    border-radius: 14px 14px 14px 4px;
+
+    &.mine {
+      border-radius: 14px 14px 4px 14px;
+    }
   }
 
   .message-meta {
-    font-size: 11px;
+    font-size: 10px;
   }
 
-  .message-composer {
-    padding: 12px;
+  .msg-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+    border-radius: 8px;
   }
 
   .composer-input {
-    min-height: 76px;
+    min-height: 44px;
     font-size: 14px;
+    padding: 10px 14px;
   }
 
   .composer-actions {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
   }
 
   .composer-buttons {
     width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    justify-content: flex-end;
   }
 
-  .upload-btn,
-  .reconnect-btn,
-  .send-btn {
-    width: 100%;
+  .upload-label {
+    display: none;
   }
 
-  .send-error,
-  .send-pending,
-  .send-hint {
-    font-size: 13px;
-  }
-
-  .scroll-to-bottom-btn {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    bottom: 8px;
-    max-width: calc(100% - 24px);
+  .upload-btn {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
   }
 }
 </style>
-
 
 ====================================================================================================
 PATH: mango-talk/frontend/src/views/LoginView.vue
@@ -2140,33 +2528,58 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/LoginView.vue
 
 <template>
   <div class="login-page">
+    <div class="bg-orb bg-orb--orange"></div>
+    <div class="bg-orb bg-orb--cyan"></div>
+    <div class="bg-orb bg-orb--peach"></div>
+
     <div class="login-card">
       <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="14" fill="url(#brand-grad)" />
+            <path d="M14 20c0-4.418 4.477-8 10-8s10 3.582 10 8-4.477 8-10 8c-1.29 0-2.527-.18-3.672-.51L16 30l1.176-3.53C15.42 24.87 14 22.56 14 20z" fill="#fff" fill-opacity=".92"/>
+            <circle cx="20" cy="20" r="1.5" fill="#f97316"/>
+            <circle cx="24" cy="20" r="1.5" fill="#06b6d4"/>
+            <circle cx="28" cy="20" r="1.5" fill="#f97316"/>
+            <defs>
+              <linearGradient id="brand-grad" x1="0" y1="0" x2="48" y2="48">
+                <stop stop-color="#fb923c"/>
+                <stop offset="1" stop-color="#f97316"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
         <h1>Mango Talk</h1>
-        <p>标准聊天室 · 登录入口</p>
+        <p class="brand-sub">标准聊天室 · 登录入口</p>
       </div>
 
       <form class="login-form" @submit.prevent="handleLogin">
         <div class="form-item">
           <label for="identifier">用户名或手机号</label>
-          <input
-            id="identifier"
-            v-model.trim="form.identifier"
-            type="text"
-            placeholder="请输入用户名或手机号"
-            autocomplete="username"
-          />
+          <div class="input-wrap">
+            <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10 10a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0H3z"/></svg>
+            <input
+              id="identifier"
+              v-model.trim="form.identifier"
+              type="text"
+              placeholder="请输入用户名或手机号"
+              autocomplete="username"
+            />
+          </div>
         </div>
 
         <div class="form-item">
           <label for="password">密码</label>
-          <input
-            id="password"
-            v-model="form.password"
-            type="password"
-            placeholder="请输入密码"
-            autocomplete="current-password"
-          />
+          <div class="input-wrap">
+            <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+            <input
+              id="password"
+              v-model="form.password"
+              type="password"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+            />
+          </div>
         </div>
 
         <p v-if="errorMessage" class="error-text">
@@ -2174,7 +2587,8 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/LoginView.vue
         </p>
 
         <button class="submit-btn" type="submit" :disabled="authStore.loading">
-          {{ authStore.loading ? '登录中...' : '登录' }}
+          <span class="btn-text">{{ authStore.loading ? '登录中...' : '登录' }}</span>
+          <svg v-if="!authStore.loading" class="btn-arrow" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
         </button>
       </form>
 
@@ -2225,50 +2639,149 @@ async function handleLogin() {
 </script>
 
 <style scoped lang="scss">
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Outfit:wght@600;700;800&display=swap');
+
 .login-page {
+  --c-orange: #f97316;
+  --c-orange-light: #fed7aa;
+  --c-cyan: #06b6d4;
+  --c-cyan-light: #a5f3fc;
+  --c-slate-900: #0f172a;
+  --c-slate-700: #334155;
+  --c-slate-500: #64748b;
+  --c-slate-300: #cbd5e1;
+  --c-slate-100: #f1f5f9;
+  --c-danger: #ef4444;
+
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(circle at top left, rgba(255, 181, 71, 0.28), transparent 30%),
-    linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  background: #0f172a;
   padding: 24px;
+  position: relative;
+  overflow: hidden;
+  font-family: 'DM Sans', system-ui, sans-serif;
 }
 
+/* ---------- animated background orbs ---------- */
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: float 18s ease-in-out infinite;
+
+  &--orange {
+    width: 520px;
+    height: 520px;
+    background: var(--c-orange);
+    top: -10%;
+    right: -5%;
+    animation-delay: 0s;
+  }
+
+  &--cyan {
+    width: 440px;
+    height: 440px;
+    background: var(--c-cyan);
+    bottom: -12%;
+    left: -8%;
+    animation-delay: -6s;
+  }
+
+  &--peach {
+    width: 300px;
+    height: 300px;
+    background: #fbbf24;
+    top: 50%;
+    left: 55%;
+    opacity: 0.25;
+    animation-delay: -12s;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 15px) scale(0.95); }
+}
+
+/* ---------- card ---------- */
 .login-card {
+  position: relative;
   width: 100%;
-  max-width: 420px;
-  padding: 36px 32px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
-  backdrop-filter: blur(6px);
+  max-width: 430px;
+  padding: 40px 36px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(40px) saturate(1.4);
+  -webkit-backdrop-filter: blur(40px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  animation: card-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(32px) scale(0.96);
+  }
+}
+
+/* ---------- brand ---------- */
 .brand {
-  margin-bottom: 28px;
   text-align: center;
+  margin-bottom: 32px;
+}
 
-  h1 {
-    margin: 0 0 10px;
-    font-size: 34px;
-    font-weight: 700;
-    color: #f97316;
-    letter-spacing: 0.5px;
-  }
+.brand-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  animation: icon-pop 0.6s 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 
-  p {
-    margin: 0;
-    font-size: 14px;
-    color: #64748b;
+  svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 4px 12px rgba(249, 115, 22, 0.35));
   }
 }
 
+@keyframes icon-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-12deg);
+  }
+}
+
+.brand h1 {
+  margin: 0 0 6px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--c-orange) 30%, var(--c-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.02em;
+}
+
+.brand-sub {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
+}
+
+/* ---------- form ---------- */
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 .form-item {
@@ -2277,69 +2790,171 @@ async function handleLogin() {
   gap: 8px;
 
   label {
-    font-size: 14px;
-    color: #334155;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+}
+
+.input-wrap {
+  position: relative;
+
+  .input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: rgba(255, 255, 255, 0.25);
+    pointer-events: none;
+    transition: color 0.25s;
   }
 
   input {
-    height: 46px;
-    padding: 0 14px;
-    border: 1px solid #e2e8f0;
+    width: 100%;
+    height: 50px;
+    padding: 0 16px 0 42px;
+    border: 1.5px solid rgba(255, 255, 255, 0.1);
     border-radius: 14px;
     outline: none;
+    font-family: inherit;
     font-size: 15px;
-    color: #0f172a;
-    background: #fff;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+    transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    box-sizing: border-box;
+
+    &::placeholder {
+      color: rgba(255, 255, 255, 0.25);
+    }
 
     &:focus {
-      border-color: #fb923c;
-      box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.14);
+      border-color: var(--c-orange);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
     }
+
+    &:focus ~ .input-icon,
+    &:focus + .input-icon {
+      color: var(--c-orange);
+    }
+  }
+
+  &:focus-within .input-icon {
+    color: var(--c-orange);
   }
 }
 
 .error-text {
   margin: -4px 0 0;
-  font-size: 14px;
-  color: #dc2626;
+  font-size: 13px;
+  color: var(--c-danger);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  &::before {
+    content: '⚠';
+    font-size: 14px;
+  }
 }
 
+/* ---------- submit button ---------- */
 .submit-btn {
-  height: 46px;
+  height: 50px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+  background: linear-gradient(135deg, var(--c-orange) 0%, #ea580c 100%);
   color: #fff;
+  font-family: inherit;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.3);
 
   &:hover:enabled {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 20px rgba(249, 115, 22, 0.22);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(249, 115, 22, 0.4);
+  }
+
+  &:active:enabled {
+    transform: translateY(0);
   }
 
   &:disabled {
-    opacity: 0.72;
+    opacity: 0.6;
     cursor: not-allowed;
   }
 }
 
+.btn-arrow {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.25s;
+}
+
+.submit-btn:hover:enabled .btn-arrow {
+  transform: translateX(4px);
+}
+
+/* ---------- footer ---------- */
 .footer-tip {
-  margin-top: 22px;
+  margin-top: 28px;
   text-align: center;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 
   p {
     margin: 4px 0;
-    font-size: 13px;
-    color: #94a3b8;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.02em;
+  }
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 480px) {
+  .login-page {
+    padding: 16px;
+  }
+
+  .login-card {
+    padding: 32px 24px;
+    border-radius: 22px;
+  }
+
+  .brand h1 {
+    font-size: 28px;
+  }
+
+  .brand-icon {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (max-height: 640px) {
+  .login-card {
+    padding: 28px 28px;
+  }
+
+  .brand {
+    margin-bottom: 20px;
+  }
+
+  .footer-tip {
+    margin-top: 18px;
   }
 }
 </style>
-
 
 ====================================================================================================
 PATH: mango-talk/frontend/vite.config.js
