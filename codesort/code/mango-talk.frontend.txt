@@ -1,5 +1,5 @@
 MANGO TALK FRONTEND CODE MERGED
-TOTAL_FILES: 11
+TOTAL_FILES: 13
 
 ====================================================================================================
 PATH: mango-talk/frontend/index.html
@@ -36,6 +36,1565 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/App.vue
 <style scoped>
 </style>
 
+
+====================================================================================================
+PATH: mango-talk/frontend/src/components/GroupRoomCreator.vue
+ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/components/GroupRoomCreator.vue
+====================================================================================================
+
+<template>
+  <div class="group-room-creator">
+    <button
+      class="create-btn group-btn"
+      type="button"
+      :disabled="creating"
+      @click="handleToggle"
+      title="新建群聊"
+      :class="{ active: open }"
+    >
+      <svg
+        class="create-icon"
+        :class="{ rotated: open }"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        width="14"
+        height="14"
+      >
+        <path d="M7 9a3 3 0 100-6 3 3 0 000 6zM13 10a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM7 11c-3.314 0-6 2.239-6 5a1 1 0 001 1h8.2a1 1 0 00.98-1.2C10.8 13.07 9.1 11 7 11zM13 11c-1.095 0-2.087.302-2.871.82A6.93 6.93 0 0112 16h6a1 1 0 001-1c0-2.21-2.239-4-5-4z"/>
+      </svg>
+    </button>
+
+    <Transition name="panel">
+      <div v-if="open" class="create-panel">
+        <div class="panel-glow"></div>
+
+        <div class="panel-header">
+          <div class="panel-header-text">
+            <div class="panel-title-row">
+              <div class="panel-title-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                  <path d="M7 9a3 3 0 100-6 3 3 0 000 6zM13 10a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM7 11c-3.314 0-6 2.239-6 5a1 1 0 001 1h8.2a1 1 0 00.98-1.2C10.8 13.07 9.1 11 7 11zM13 11c-1.095 0-2.087.302-2.871.82A6.93 6.93 0 0112 16h6a1 1 0 001-1c0-2.21-2.239-4-5-4z"/>
+                </svg>
+              </div>
+              <p class="panel-title">新建群聊</p>
+            </div>
+            <p class="panel-subtitle">填写群聊信息并选择成员，然后创建新群聊</p>
+          </div>
+
+          <button class="panel-close" type="button" @click="handleClose">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-block">
+            <label class="field-label">群聊名称</label>
+            <input
+              v-model.trim="groupName"
+              class="text-input"
+              type="text"
+              maxlength="100"
+              placeholder="例如：Mango Talk 测试群"
+            />
+          </div>
+
+          <div class="form-block">
+            <label class="field-label">群聊简介（可选）</label>
+            <textarea
+              v-model.trim="description"
+              class="textarea-input"
+              rows="2"
+              maxlength="255"
+              placeholder="例如：用于前端联调和群聊功能验证"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="member-section">
+          <div class="member-header">
+            <span class="field-label">已选成员</span>
+            <span class="member-count">{{ selectedUsers.length }} 人</span>
+          </div>
+
+          <div v-if="selectedUsers.length > 0" class="selected-list">
+            <button
+              v-for="user in selectedUsers"
+              :key="user.id"
+              class="selected-chip"
+              type="button"
+              @click="removeSelectedUser(user.id)"
+            >
+              <span class="chip-avatar">{{ getUserInitial(user.username) }}</span>
+              <span class="chip-name">{{ user.username }}</span>
+              <span class="chip-remove">×</span>
+            </button>
+          </div>
+
+          <div v-else class="selected-empty">
+            请至少选择 1 位群成员
+          </div>
+        </div>
+
+        <div class="search-row">
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+            </svg>
+
+            <input
+              v-model.trim="keyword"
+              class="search-input"
+              type="text"
+              placeholder="搜索用户名或手机号"
+              @keydown.enter.prevent="handleSearch"
+            />
+          </div>
+
+          <button
+            class="search-btn"
+            type="button"
+            :disabled="searching || creating"
+            @click="handleSearch"
+          >
+            <span v-if="searching" class="spinner-tiny"></span>
+            <span v-else>搜索</span>
+          </button>
+        </div>
+
+        <div v-if="errorMessage" class="panel-message panel-error">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <span>{{ errorMessage }}</span>
+        </div>
+
+        <div v-else class="panel-message panel-hint">
+          <template v-if="searching">
+            <span class="spinner-tiny hint-spinner"></span>
+            <span>正在搜索可添加成员...</span>
+          </template>
+          <template v-else-if="searched && results.length === 0">
+            <span>没有找到匹配用户</span>
+          </template>
+          <template v-else>
+            <span>{{ panelHintText }}</span>
+          </template>
+        </div>
+
+        <TransitionGroup
+          v-if="results.length > 0"
+          name="result"
+          tag="div"
+          class="result-list"
+        >
+          <button
+            v-for="(user, index) in results"
+            :key="user.id"
+            class="result-item"
+            type="button"
+            :disabled="creating"
+            :style="{ '--i': index }"
+            @click="toggleSelectedUser(user)"
+          >
+            <div class="result-avatar">
+              {{ getUserInitial(user.username) }}
+            </div>
+
+            <div class="result-main">
+              <p class="result-name">{{ user.username }}</p>
+              <p class="result-sub">{{ user.phone || '未填写手机号' }}</p>
+            </div>
+
+            <span
+              class="result-action"
+              :class="{ selected: isSelected(user.id) }"
+            >
+              {{ isSelected(user.id) ? '已选择' : '添加' }}
+            </span>
+          </button>
+        </TransitionGroup>
+
+        <div class="panel-footer">
+          <p class="footer-tip">
+            群名称必填，且至少选择 1 位成员
+          </p>
+
+          <button
+            class="create-group-submit"
+            type="button"
+            :disabled="!canCreateGroup"
+            @click="handleCreateGroupRoom"
+          >
+            <span v-if="creating" class="spinner-tiny"></span>
+            <span v-else>创建群聊</span>
+          </button>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<script setup>
+import { computed, ref } from 'vue'
+import http from '../lib/http'
+
+const emit = defineEmits(['room-created'])
+
+const open = ref(false)
+const groupName = ref('')
+const description = ref('')
+const keyword = ref('')
+const results = ref([])
+const selectedUsers = ref([])
+const searching = ref(false)
+const searched = ref(false)
+const creating = ref(false)
+const errorMessage = ref('')
+
+const canCreateGroup = computed(() => {
+  return (
+    !!groupName.value.trim() &&
+    selectedUsers.value.length > 0 &&
+    !creating.value
+  )
+})
+
+const panelHintText = computed(() => {
+  if (selectedUsers.value.length > 0) {
+    return '可以继续搜索更多成员，或直接创建群聊'
+  }
+
+  return '先搜索用户，再点击“添加”加入群成员列表'
+})
+
+function getUserInitial(username) {
+  return (username || 'U').charAt(0).toUpperCase()
+}
+
+function isSelected(userId) {
+  return selectedUsers.value.some((user) => user.id === userId)
+}
+
+function toggleSelectedUser(user) {
+  if (!user?.id) {
+    return
+  }
+
+  if (isSelected(user.id)) {
+    removeSelectedUser(user.id)
+    return
+  }
+
+  selectedUsers.value = [...selectedUsers.value, user]
+}
+
+function removeSelectedUser(userId) {
+  selectedUsers.value = selectedUsers.value.filter((user) => user.id !== userId)
+}
+
+function resetPanelState() {
+  groupName.value = ''
+  description.value = ''
+  keyword.value = ''
+  results.value = []
+  selectedUsers.value = []
+  searching.value = false
+  searched.value = false
+  creating.value = false
+  errorMessage.value = ''
+}
+
+function handleToggle() {
+  open.value = !open.value
+
+  if (!open.value) {
+    resetPanelState()
+  }
+}
+
+function handleClose() {
+  open.value = false
+  resetPanelState()
+}
+
+async function handleSearch() {
+  errorMessage.value = ''
+  searching.value = true
+  searched.value = false
+
+  try {
+    const response = await http.get('/users/search', {
+      params: {
+        keyword: keyword.value,
+        limit: 12,
+      },
+    })
+
+    results.value = Array.isArray(response.data) ? response.data : []
+    searched.value = true
+  } catch (error) {
+    console.error('搜索群成员失败:', error)
+    errorMessage.value =
+      error?.response?.data?.detail || '搜索用户失败，请稍后重试'
+  } finally {
+    searching.value = false
+  }
+}
+
+async function handleCreateGroupRoom() {
+  const name = groupName.value.trim()
+  const desc = description.value.trim()
+
+  errorMessage.value = ''
+
+  if (!name) {
+    errorMessage.value = '请输入群聊名称'
+    return
+  }
+
+  if (selectedUsers.value.length === 0) {
+    errorMessage.value = '请至少选择 1 位群成员'
+    return
+  }
+
+  creating.value = true
+
+  try {
+    const response = await http.post('/rooms/group', {
+      name,
+      description: desc || null,
+      member_user_ids: selectedUsers.value.map((user) => user.id),
+    })
+
+    const roomId = response?.data?.room?.id
+    if (!roomId) {
+      throw new Error('创建群聊成功，但未拿到房间 ID')
+    }
+
+    emit('room-created', roomId)
+    handleClose()
+  } catch (error) {
+    console.error('创建群聊失败:', error)
+    errorMessage.value =
+      error?.response?.data?.detail || '创建群聊失败，请稍后重试'
+  } finally {
+    creating.value = false
+  }
+}
+</script>
+
+<style scoped lang="scss">
+.group-room-creator {
+  position: static;
+}
+
+.create-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: var(--c-sidebar-surface, rgba(255,255,255,0.05));
+  color: var(--c-sidebar-text, rgba(255,255,255,0.7));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.14);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.group-btn:hover:not(:disabled),
+.group-btn.active {
+  background: rgba(6, 182, 212, 0.16);
+  color: #22d3ee;
+}
+
+.create-icon {
+  transition: transform 0.3s ease;
+}
+
+.create-icon.rotated {
+  transform: scale(1.06);
+}
+
+.create-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 4px;
+  left: auto;
+
+  width: min(340px, calc(100% - 8px));
+  max-width: calc(100% - 8px);
+  box-sizing: border-box;
+
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(12, 18, 34, 0.95);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  z-index: 61;
+  overflow: hidden;
+}
+
+.panel-glow {
+  position: absolute;
+  top: -40px;
+  right: -10px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 72%);
+  pointer-events: none;
+}
+
+.panel-enter-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.panel-enter-from {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+}
+
+.panel-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.panel-header-text {
+  min-width: 0;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.panel-title-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(249, 115, 22, 0.12));
+  color: #22d3ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.panel-subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.panel-close {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.text-input,
+.textarea-input,
+.search-input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.22);
+  }
+
+  &:focus {
+    border-color: rgba(6, 182, 212, 0.45);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.08);
+  }
+}
+
+.text-input {
+  height: 38px;
+  padding: 0 12px;
+}
+
+.textarea-input {
+  resize: vertical;
+  min-height: 64px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.member-section {
+  margin-bottom: 12px;
+}
+
+.member-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.member-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selected-empty {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+}
+
+.selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(6, 182, 212, 0.18);
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.1);
+  color: #d5fbff;
+  padding: 6px 10px 6px 6px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  font-family: inherit;
+
+  &:hover {
+    background: rgba(6, 182, 212, 0.16);
+    border-color: rgba(6, 182, 212, 0.28);
+  }
+}
+
+.chip-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chip-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chip-remove {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-input-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.search-input {
+  height: 38px;
+  padding: 0 12px 0 32px;
+}
+
+.search-btn,
+.create-group-submit {
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 14px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.search-btn {
+  min-width: 54px;
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.18);
+}
+
+.create-group-submit {
+  min-width: 92px;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.2);
+}
+
+.panel-message {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 20px;
+}
+
+.panel-error {
+  color: #fca5a5;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+}
+
+.panel-hint {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.hint-spinner {
+  border-top-color: rgba(6, 182, 212, 0.7) !important;
+}
+
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+  }
+}
+
+.result-enter-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 0.04s);
+}
+
+.result-leave-active {
+  transition: all 0.2s ease;
+}
+
+.result-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+}
+
+.result-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+.result-item {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  font-family: inherit;
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(6, 182, 212, 0.25);
+    transform: translateX(2px);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.result-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.result-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-name {
+  margin: 0 0 2px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.result-sub {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+  word-break: break-word;
+}
+
+.result-action {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(249, 115, 22, 0.1);
+  color: #fb923c;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.result-action.selected {
+  background: rgba(6, 182, 212, 0.12);
+  color: #22d3ee;
+}
+
+.panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.footer-tip {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.spinner-tiny {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>
+
+====================================================================================================
+PATH: mango-talk/frontend/src/components/PrivateRoomCreator.vue
+ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/components/PrivateRoomCreator.vue
+====================================================================================================
+
+<template>
+  <div class="private-room-creator">
+    <button
+      class="create-btn"
+      type="button"
+      :disabled="creatingUserId !== null"
+      @click="handleToggle"
+      title="新建私聊"
+      :class="{ active: open }"
+    >
+      <svg
+        class="create-icon"
+        :class="{ rotated: open }"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        width="14"
+        height="14"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"
+          clip-rule="evenodd"
+        />
+      </svg>
+    </button>
+
+    <Transition name="panel">
+      <div v-if="open" class="create-panel">
+        <div class="panel-glow"></div>
+
+        <div class="panel-header">
+          <div class="panel-header-text">
+            <div class="panel-title-row">
+              <div class="panel-title-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                  <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z"/>
+                </svg>
+              </div>
+              <p class="panel-title">新建私聊</p>
+            </div>
+            <p class="panel-subtitle">搜索用户名或手机号，点击即可发起私聊</p>
+          </div>
+
+          <button class="panel-close" type="button" @click="handleClose">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="search-row">
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+            </svg>
+            <input
+              v-model.trim="keyword"
+              class="search-input"
+              type="text"
+              placeholder="例如：alice 或 18800002222"
+              @keydown.enter.prevent="handleSearch"
+            />
+          </div>
+
+          <button
+            class="search-btn"
+            type="button"
+            :disabled="searching"
+            @click="handleSearch"
+          >
+            <span v-if="searching" class="spinner-tiny"></span>
+            <span v-else>搜索</span>
+          </button>
+        </div>
+
+        <div v-if="errorMessage" class="panel-message panel-error">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <span>{{ errorMessage }}</span>
+        </div>
+
+        <div v-else class="panel-message panel-hint">
+          <template v-if="searching">
+            <span class="spinner-tiny hint-spinner"></span>
+            <span>正在搜索用户...</span>
+          </template>
+          <template v-else-if="searched && results.length === 0">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" style="opacity:0.5">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+            </svg>
+            <span>没有找到匹配用户</span>
+          </template>
+          <template v-else>
+            <span>输入关键词后搜索，点击用户即可创建或进入已有私聊</span>
+          </template>
+        </div>
+
+        <TransitionGroup
+          v-if="results.length > 0"
+          name="result"
+          tag="div"
+          class="result-list"
+        >
+          <button
+            v-for="(user, index) in results"
+            :key="user.id"
+            class="result-item"
+            type="button"
+            :disabled="creatingUserId !== null"
+            :style="{ '--i': index }"
+            @click="handleCreatePrivateRoom(user)"
+          >
+            <div class="result-avatar">
+              {{ getUserInitial(user.username) }}
+            </div>
+
+            <div class="result-main">
+              <p class="result-name">{{ user.username }}</p>
+              <p class="result-sub">
+                {{ user.phone || '未填写手机号' }}
+              </p>
+            </div>
+
+            <span class="result-action" :class="{ creating: creatingUserId === user.id }">
+              <template v-if="creatingUserId === user.id">
+                <span class="spinner-tiny"></span>
+              </template>
+              <template v-else>
+                <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12">
+                  <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/>
+                  <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"/>
+                </svg>
+                <span>私聊</span>
+              </template>
+            </span>
+          </button>
+        </TransitionGroup>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<script setup>
+import { computed, ref } from 'vue'
+import http from '../lib/http'
+
+const emit = defineEmits(['room-created'])
+
+const open = ref(false)
+const keyword = ref('')
+const results = ref([])
+const searching = ref(false)
+const searched = ref(false)
+const creatingUserId = ref(null)
+const errorMessage = ref('')
+
+const panelHintText = computed(() => {
+  if (searching.value) {
+    return '正在搜索用户...'
+  }
+
+  if (searched.value && results.value.length === 0) {
+    return '没有找到匹配用户'
+  }
+
+  return '输入关键词后搜索，点击用户即可创建或进入已有私聊'
+})
+
+function getUserInitial(username) {
+  return (username || 'U').charAt(0).toUpperCase()
+}
+
+function resetPanelState() {
+  keyword.value = ''
+  results.value = []
+  searching.value = false
+  searched.value = false
+  creatingUserId.value = null
+  errorMessage.value = ''
+}
+
+function handleToggle() {
+  open.value = !open.value
+
+  if (!open.value) {
+    resetPanelState()
+  }
+}
+
+function handleClose() {
+  open.value = false
+  resetPanelState()
+}
+
+async function handleSearch() {
+  errorMessage.value = ''
+  searching.value = true
+  searched.value = false
+
+  try {
+    const response = await http.get('/users/search', {
+      params: {
+        keyword: keyword.value,
+        limit: 10,
+      },
+    })
+
+    results.value = response.data
+    searched.value = true
+  } catch (error) {
+    console.error('搜索用户失败:', error)
+    errorMessage.value =
+      error?.response?.data?.detail || '搜索用户失败，请稍后重试'
+  } finally {
+    searching.value = false
+  }
+}
+
+async function handleCreatePrivateRoom(user) {
+  if (!user?.id) {
+    return
+  }
+
+  errorMessage.value = ''
+  creatingUserId.value = user.id
+
+  try {
+    const response = await http.post('/rooms/private', {
+      target_user_id: user.id,
+    })
+
+    const roomId = response?.data?.room?.id
+    if (!roomId) {
+      throw new Error('创建私聊成功，但未拿到房间 ID')
+    }
+
+    emit('room-created', roomId)
+    handleClose()
+  } catch (error) {
+    console.error('创建私聊失败:', error)
+    errorMessage.value =
+      error?.response?.data?.detail || '创建私聊失败，请稍后重试'
+  } finally {
+    creatingUserId.value = null
+  }
+}
+</script>
+
+<style scoped lang="scss">
+.private-room-creator {
+  position: static;
+}
+
+/* ========== Trigger Button ========== */
+.create-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: var(--c-sidebar-surface, rgba(255,255,255,0.05));
+  color: var(--c-sidebar-text, rgba(255,255,255,0.7));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+
+  &:hover:not(:disabled) {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.15);
+  }
+
+  &.active {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fb923c;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.create-icon {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  &.rotated {
+    transform: rotate(45deg);
+  }
+}
+
+/* ========== Panel ========== */
+.create-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 4px;
+  left: auto;
+
+  width: min(290px, calc(100% - 8px));
+  max-width: calc(100% - 8px);
+  box-sizing: border-box;
+
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(12, 18, 34, 0.95);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  z-index: 60;
+  overflow: hidden;
+}
+
+.panel-glow {
+  position: absolute;
+  top: -40px;
+  left: -20px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* -- Panel transition -- */
+.panel-enter-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.panel-enter-from {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+}
+
+.panel-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+/* ========== Panel Header ========== */
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.panel-header-text {
+  min-width: 0;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.panel-title-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(6, 182, 212, 0.15));
+  color: #fb923c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.panel-subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.panel-close {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+}
+
+/* ========== Search ========== */
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-input-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  transition: color 0.25s;
+}
+
+.search-input-wrap:focus-within .search-icon {
+  color: rgba(6, 182, 212, 0.6);
+}
+
+.search-input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 0 12px 0 32px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.22);
+  }
+
+  &:focus {
+    border-color: rgba(6, 182, 212, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.08);
+  }
+}
+
+.search-btn {
+  height: 38px;
+  min-width: 54px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 14px;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.2);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+/* ========== Messages ========== */
+.panel-message {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 20px;
+}
+
+.panel-error {
+  color: #fca5a5;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+}
+
+.panel-hint {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.hint-spinner {
+  border-top-color: rgba(6, 182, 212, 0.7) !important;
+}
+
+/* ========== Result List ========== */
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 2px;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+  }
+}
+
+/* -- Result item transitions -- */
+.result-enter-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 0.04s);
+}
+
+.result-leave-active {
+  transition: all 0.2s ease;
+}
+
+.result-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+}
+
+.result-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+.result-item {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(6, 182, 212, 0.25);
+    transform: translateX(2px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateX(2px) scale(0.99);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.result-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(6, 182, 212, 0.2);
+}
+
+.result-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-name {
+  margin: 0 0 2px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.result-sub {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 11px;
+  word-break: break-word;
+}
+
+.result-action {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(249, 115, 22, 0.1);
+  color: #fb923c;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+
+  &.creating {
+    background: rgba(6, 182, 212, 0.1);
+    color: #22d3ee;
+  }
+}
+
+.result-item:hover:not(:disabled) .result-action:not(.creating) {
+  background: rgba(249, 115, 22, 0.18);
+  color: #fdba74;
+}
+
+/* ========== Spinner ========== */
+.spinner-tiny {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>
 
 ====================================================================================================
 PATH: mango-talk/frontend/src/lib/http.js
@@ -441,10 +2000,16 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
       <div class="room-section">
         <div class="room-section-header">
           <h3>我的房间</h3>
-          <button class="refresh-btn" @click="handleRefreshRooms" :disabled="roomStore.loading">
-            <svg v-if="!roomStore.loading" viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
-            <span v-else class="spinner-tiny"></span>
-          </button>
+
+          <div class="room-header-actions">
+            <GroupRoomCreator @room-created="handleGroupRoomCreated" />
+            <PrivateRoomCreator @room-created="handlePrivateRoomCreated" />
+
+            <button class="refresh-btn" @click="handleRefreshRooms" :disabled="roomStore.loading">
+              <svg v-if="!roomStore.loading" viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+              <span v-else class="spinner-tiny"></span>
+            </button>
+          </div>
         </div>
 
         <div v-if="roomStore.loading && roomStore.rooms.length === 0" class="room-empty">
@@ -541,7 +2106,13 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
                 v-for="message in currentMessages"
                 :key="message.id"
                 class="message-row"
-                :class="{ mine: isMine(message) }"
+                :data-message-id="message.id"
+                :class="{
+                  mine: isMine(message),
+                  'has-actions': canReplyMessage(message) || canRecallMessage(message),
+                  'replying-target': replyDraft?.messageId === message.id,
+                  'jump-highlight': activeJumpMessageId === message.id
+                }"
               >
                 <div class="message-avatar-col" v-if="!isMine(message)">
                   <div class="msg-avatar">{{ getSenderLabel(message).charAt(0) }}</div>
@@ -564,9 +2135,24 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
                       recalled: message.is_recalled
                     }"
                   >
-                    <p v-if="message.reply_to_message_id" class="reply-tip">
-                      回复消息 #{{ message.reply_to_message_id }}
-                    </p>
+                    <div
+                      v-if="message.reply_to_message_id && !message.is_recalled"
+                      class="reply-preview"
+                      :class="{
+                        mine: isMine(message),
+                        missing: !getReplyTargetMessage(message),
+                        clickable: !!getReplyTargetMessage(message)
+                      }"
+                      :title="getReplyTargetMessage(message) ? '点击定位原消息' : '原消息暂未加载，当前无法定位'"
+                      @click="handleReplyPreviewClick(message)"
+                    >
+                      <p class="reply-preview-label">
+                        {{ getReplyPreviewTitle(message) }}
+                      </p>
+                      <p class="reply-preview-content">
+                        {{ getReplyPreviewContent(message) }}
+                      </p>
+                    </div>
 
                     <p v-if="message.is_recalled" class="recalled-text">
                       该消息已被撤回
@@ -637,11 +2223,22 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
                   </div>
 
                   <div
-                    v-if="canRecallMessage(message)"
+                    v-if="canReplyMessage(message) || canRecallMessage(message)"
                     class="message-actions"
                     :class="{ mine: isMine(message) }"
                   >
                     <button
+                      v-if="canReplyMessage(message)"
+                      class="reply-btn"
+                      type="button"
+                      :class="{ active: replyDraft?.messageId === message.id }"
+                      @click="handleReplyMessage(message)"
+                    >
+                      回复
+                    </button>
+
+                    <button
+                      v-if="canRecallMessage(message)"
                       class="recall-btn"
                       type="button"
                       :disabled="recallingMessageId === message.id"
@@ -681,6 +2278,25 @@ ABSOLUTE_PATH: /home/projects/mango-talk/frontend/src/views/ChatView.vue
 
       <footer class="message-composer" v-if="roomStore.selectedRoom">
         <div class="composer-box">
+          <div v-if="replyDraft" class="reply-draft-bar">
+            <div class="reply-draft-text">
+              <p class="reply-draft-label">
+                正在回复 {{ replyDraft.senderLabel }}
+              </p>
+              <p class="reply-draft-content">
+                {{ replyDraft.previewText }}
+              </p>
+            </div>
+
+            <button
+              class="reply-draft-cancel"
+              type="button"
+              @click="clearReplyDraft"
+            >
+              取消
+            </button>
+          </div>
+
           <div class="composer-input-row">
             <textarea
               v-model="draftMessage"
@@ -757,6 +2373,8 @@ import http from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 import { useRoomStore } from '../stores/room'
 import { useMessageStore } from '../stores/message'
+import PrivateRoomCreator from '../components/PrivateRoomCreator.vue'
+import GroupRoomCreator from '../components/GroupRoomCreator.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -771,6 +2389,9 @@ const sendError = ref('')
 const sending = ref(false)
 const uploading = ref(false)
 const recallingMessageId = ref(null)
+const replyDraft = ref(null)
+const activeJumpMessageId = ref(null)
+const jumpHighlightTimer = ref(null)
 
 const sidebarOpen = ref(false)
 
@@ -892,6 +2513,206 @@ function canRecallMessage(message) {
     !message.is_recalled &&
     isMine(message)
   )
+}
+
+function canReplyMessage(message) {
+  return !!message && !message.is_recalled
+}
+
+function getMessagePreviewText(message) {
+  if (!message) {
+    return '该消息暂无可预览内容'
+  }
+
+  if (message.is_recalled) {
+    return '该消息已被撤回'
+  }
+
+  const content = (message.content || '').trim()
+  const attachments = getMessageAttachments(message)
+  const firstAttachment = attachments[0]
+
+  if (message.message_type === 'image') {
+    if (content && firstAttachment?.original_name) {
+      return `图片 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `图片 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `图片 · ${firstAttachment.original_name}`
+    }
+
+    return '图片消息'
+  }
+
+  if (message.message_type === 'file') {
+    if (content && firstAttachment?.original_name) {
+      return `文件 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `文件 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `文件 · ${firstAttachment.original_name}`
+    }
+
+    return '文件消息'
+  }
+
+  if (content) {
+    return content
+  }
+
+  return '该消息暂无可预览内容'
+}
+
+function handleReplyMessage(message) {
+  if (!canReplyMessage(message)) {
+    return
+  }
+
+  replyDraft.value = {
+    messageId: message.id,
+    senderLabel: getSenderLabel(message),
+    previewText: getMessagePreviewText(message),
+  }
+}
+
+function clearReplyDraft() {
+  replyDraft.value = null
+}
+
+function clearJumpHighlightTimer() {
+  if (jumpHighlightTimer.value) {
+    clearTimeout(jumpHighlightTimer.value)
+    jumpHighlightTimer.value = null
+  }
+}
+
+function highlightJumpTarget(messageId) {
+  clearJumpHighlightTimer()
+  activeJumpMessageId.value = messageId
+
+  jumpHighlightTimer.value = setTimeout(() => {
+    if (activeJumpMessageId.value === messageId) {
+      activeJumpMessageId.value = null
+    }
+  }, 1800)
+}
+
+async function jumpToMessage(messageId, behavior = 'smooth') {
+  if (!messageId) {
+    return false
+  }
+
+  await nextTick()
+
+  const container = messageScrollRef.value
+  if (!container) {
+    return false
+  }
+
+  const target = container.querySelector(`[data-message-id="${messageId}"]`)
+  if (!target) {
+    return false
+  }
+
+  target.scrollIntoView({
+    behavior,
+    block: 'center',
+  })
+
+  highlightJumpTarget(messageId)
+  return true
+}
+
+async function handleReplyPreviewClick(message) {
+  const target = getReplyTargetMessage(message)
+
+  if (!target) {
+    return
+  }
+
+  await jumpToMessage(target.id)
+}
+
+function getReplyTargetMessage(message) {
+  if (!message?.reply_to_message_id) {
+    return null
+  }
+
+  return currentMessages.value.find(
+    (item) => item.id === message.reply_to_message_id
+  ) || null
+}
+
+function getReplyPreviewTitle(message) {
+  const target = getReplyTargetMessage(message)
+
+  if (!target) {
+    return `回复消息 #${message.reply_to_message_id}`
+  }
+
+  return `回复 ${getSenderLabel(target)}`
+}
+
+function getReplyPreviewContent(message) {
+  const target = getReplyTargetMessage(message)
+
+  if (!target) {
+    return '原消息暂未加载'
+  }
+
+  if (target.is_recalled) {
+    return '该原消息已被撤回'
+  }
+
+  const content = (target.content || '').trim()
+  const attachments = getMessageAttachments(target)
+  const firstAttachment = attachments[0]
+
+  if (target.message_type === 'image') {
+    if (content && firstAttachment?.original_name) {
+      return `图片 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `图片 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `图片 · ${firstAttachment.original_name}`
+    }
+
+    return '图片消息'
+  }
+
+  if (target.message_type === 'file') {
+    if (content && firstAttachment?.original_name) {
+      return `文件 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `文件 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `文件 · ${firstAttachment.original_name}`
+    }
+
+    return '文件消息'
+  }
+
+  if (content) {
+    return content
+  }
+
+  return '该原消息暂无可预览内容'
 }
 
 function formatTime(isoString) {
@@ -1101,6 +2922,7 @@ function connectWebSocket(roomId) {
         if (mine && isPendingMessageConfirmed(message)) {
           draftMessage.value = ''
           sendError.value = ''
+          clearReplyDraft()
           resetPendingSendState()
         }
       }
@@ -1143,6 +2965,26 @@ async function handleRefreshRooms() {
   }
 }
 
+async function handlePrivateRoomCreated(roomId) {
+  try {
+    await roomStore.fetchMyRooms()
+    roomStore.selectRoom(roomId)
+    sidebarOpen.value = false
+  } catch (error) {
+    console.error('创建私聊后刷新房间失败:', error)
+  }
+}
+
+async function handleGroupRoomCreated(roomId) {
+  try {
+    await roomStore.fetchMyRooms()
+    roomStore.selectRoom(roomId)
+    sidebarOpen.value = false
+  } catch (error) {
+    console.error('创建群聊后刷新房间失败:', error)
+  }
+}
+
 function handleSelectRoom(roomId) {
   roomStore.selectRoom(roomId)
 }
@@ -1151,6 +2993,9 @@ function handleLogout() {
   disconnectWebSocket()
   resetPendingSendState()
   uploading.value = false
+  clearReplyDraft()
+  activeJumpMessageId.value = null
+  clearJumpHighlightTimer()
   authStore.logout()
   roomStore.clearRooms()
   messageStore.clearMessages()
@@ -1229,6 +3074,7 @@ async function handleUploadAndSendAttachment(file) {
   try {
     const attachment = await uploadAttachment(file)
     const currentContent = draftMessage.value.trim()
+    const currentReplyToMessageId = replyDraft.value?.messageId ?? null
     const messageType = attachment.attachment_type === 'image' ? 'image' : 'file'
 
     const currentWs = wsRef.value
@@ -1248,6 +3094,7 @@ async function handleUploadAndSendAttachment(file) {
         data: {
           message_type: messageType,
           content: currentContent,
+          reply_to_message_id: currentReplyToMessageId,
           attachments: [attachment],
         },
       })
@@ -1287,6 +3134,8 @@ async function handleSendMessage() {
   }
 
   try {
+    const currentReplyToMessageId = replyDraft.value?.messageId ?? null
+
     sending.value = true
     sendError.value = ''
     pendingMessageText.value = content
@@ -1299,6 +3148,7 @@ async function handleSendMessage() {
         data: {
           message_type: 'text',
           content,
+          reply_to_message_id: currentReplyToMessageId,
           attachments: [],
         },
       })
@@ -1356,6 +3206,9 @@ watch(
     uploading.value = false
     sendError.value = ''
     draftMessage.value = ''
+    clearReplyDraft()
+    activeJumpMessageId.value = null
+    clearJumpHighlightTimer()
     resetRoomScrollState()
 
     await loadCurrentRoomMessages()
@@ -1376,6 +3229,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   disconnectWebSocket()
   resetPendingSendState()
+  clearJumpHighlightTimer()
 })
 </script>
 
@@ -1544,6 +3398,7 @@ onBeforeUnmount(() => {
 }
 
 .room-section-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1558,6 +3413,12 @@ onBeforeUnmount(() => {
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
+}
+
+.room-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .refresh-btn {
@@ -2035,13 +3896,27 @@ onBeforeUnmount(() => {
 
 .message-actions {
   display: flex;
+  gap: 6px;
   margin-top: 4px;
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 
   &.mine {
     justify-content: flex-end;
   }
 }
 
+.message-row.has-actions:hover .message-actions,
+.message-row.has-actions:focus-within .message-actions,
+.message-row.replying-target .message-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.reply-btn,
 .recall-btn {
   border: none;
   background: transparent;
@@ -2051,12 +3926,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 6px;
-  transition: color 0.2s, background 0.2s;
-
-  &:hover:enabled {
-    color: var(--c-danger);
-    background: rgba(239,68,68,0.06);
-  }
+  transition: color 0.2s, background 0.2s, opacity 0.2s;
 
   &:disabled {
     opacity: 0.5;
@@ -2064,18 +3934,81 @@ onBeforeUnmount(() => {
   }
 }
 
-.reply-tip {
-  margin: 0 0 6px;
-  font-size: 11px;
-  opacity: 0.7;
-  padding: 4px 8px;
-  background: rgba(0,0,0,0.05);
-  border-radius: 6px;
-  display: inline-block;
+.reply-btn {
+  &:hover:enabled,
+  &.active {
+    color: var(--c-cyan-deep);
+    background: rgba(6,182,212,0.08);
+  }
 }
 
-.mine .reply-tip {
-  background: rgba(255,255,255,0.15);
+.recall-btn {
+  &:hover:enabled {
+    color: var(--c-danger);
+    background: rgba(239,68,68,0.06);
+  }
+}
+
+.reply-preview {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.06);
+  border-left: 3px solid rgba(6, 182, 212, 0.75);
+}
+
+.message-bubble.mine .reply-preview {
+  background: rgba(255, 255, 255, 0.14);
+  border-left-color: rgba(255, 255, 255, 0.75);
+}
+
+.reply-preview.missing {
+  opacity: 0.82;
+}
+
+.reply-preview.clickable {
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s, border-left-color 0.2s;
+}
+
+.reply-preview.clickable:hover {
+  background: rgba(15, 23, 42, 0.09);
+  transform: translateY(-1px);
+}
+
+.message-bubble.mine .reply-preview.clickable:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.reply-preview-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 0.92;
+}
+
+.reply-preview-content {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.78;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-row.jump-highlight .message-bubble {
+  animation: jump-highlight-flash 1.8s ease;
+  box-shadow:
+    0 0 0 2px rgba(6, 182, 212, 0.24),
+    0 10px 26px rgba(6, 182, 212, 0.14);
+}
+
+.message-row.jump-highlight.mine .message-bubble {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.30),
+    0 10px 28px rgba(249, 115, 22, 0.20);
 }
 
 .message-content,
@@ -2200,6 +4133,59 @@ onBeforeUnmount(() => {
 
 .file-input-hidden {
   display: none;
+}
+
+.reply-draft-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(6,182,212,0.06);
+  border: 1px solid rgba(6,182,212,0.14);
+}
+
+.reply-draft-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.reply-draft-label {
+  margin: 0 0 3px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-cyan-deep);
+}
+
+.reply-draft-content {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-draft-cancel {
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(15,23,42,0.06);
+  color: var(--c-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover {
+    background: rgba(239,68,68,0.08);
+    color: var(--c-danger);
+  }
 }
 
 .composer-input-row {
@@ -2369,6 +4355,18 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
+@keyframes jump-highlight-flash {
+  0% {
+    transform: scale(0.985);
+  }
+  20% {
+    transform: scale(1.008);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* ========== MOBILE ========== */
 .mobile-menu-btn {
   display: none;
@@ -2470,6 +4468,12 @@ onBeforeUnmount(() => {
 
   .message-body {
     max-width: 88%;
+  }
+
+  .message-actions {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
   }
 
   .message-bubble {

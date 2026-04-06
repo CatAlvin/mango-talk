@@ -27,6 +27,17 @@ class MessageAttachmentPublic(BaseModel):
     created_at: datetime
 
 
+class MessageReplyPreview(BaseModel):
+    id: int
+    sender_id: int
+    sender_username: str | None = None
+    message_type: str
+    content: str | None
+    is_recalled: bool
+    created_at: datetime
+    attachments: list[MessageAttachmentPublic] = Field(default_factory=list)
+
+
 class MessageCreate(BaseModel):
     room_id: int = Field(gt=0)
     message_type: str = Field(default="text", max_length=20)
@@ -41,9 +52,11 @@ class MessagePublic(BaseModel):
     id: int
     room_id: int
     sender_id: int
+    sender_username: str | None = None
     message_type: str
     content: str | None
     reply_to_message_id: int | None
+    replied_message: MessageReplyPreview | None = None
     is_recalled: bool
     recalled_at: datetime | None
     created_at: datetime

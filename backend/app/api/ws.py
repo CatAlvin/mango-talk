@@ -12,6 +12,7 @@ from app.models.chat_room import ChatRoom
 from app.models.chat_room_member import ChatRoomMember
 from app.models.message import Message
 from app.models.message_attachment import MessageAttachment
+from app.models.user import User
 from app.services.ws_manager import manager
 
 router = APIRouter(tags=["websocket"])
@@ -22,6 +23,14 @@ def get_room_member(db: Session, room_id: int, user_id: int) -> ChatRoomMember |
         ChatRoomMember.room_id == room_id,
         ChatRoomMember.user_id == user_id,
     ).first()
+
+
+def load_message_with_attachments(db: Session, message_id: int) -> Message | None:
+    return db.execute(
+        select(Message)
+        .options(selectinload(Message.attachments))
+        .where(Message.id == message_id)
+    ).scalar_one_or_none()
 
 
 async def safe_send_personal_message(
@@ -58,7 +67,40 @@ def serialize_attachment(attachment: MessageAttachment) -> dict:
     }
 
 
-def serialize_message(message: Message, sender_username: str) -> dict:
+def build_reply_preview(db: Session, message: Message) -> dict | None:
+    if not message.reply_to_message_id:
+        return None
+
+    reply_target = load_message_with_attachments(db, message.reply_to_message_id)
+    if not reply_target:
+        return None
+
+    if reply_target.room_id != message.room_id:
+        return None
+
+    reply_sender = db.get(User, reply_target.sender_id)
+
+    return {
+        "id": reply_target.id,
+        "sender_id": reply_target.sender_id,
+        "sender_username": reply_sender.username if reply_sender else None,
+        "message_type": reply_target.message_type,
+        "content": reply_target.content,
+        "is_recalled": reply_target.is_recalled,
+        "created_at": reply_target.created_at.isoformat() if reply_target.created_at else None,
+        "attachments": [serialize_attachment(item) for item in reply_target.attachments],
+    }
+
+
+def serialize_message(
+    db: Session,
+    message: Message,
+    sender_username: str | None = None,
+) -> dict:
+    if sender_username is None:
+        sender = db.get(User, message.sender_id)
+        sender_username = sender.username if sender else None
+
     return {
         "id": message.id,
         "room_id": message.room_id,
@@ -67,9 +109,10 @@ def serialize_message(message: Message, sender_username: str) -> dict:
         "message_type": message.message_type,
         "content": message.content,
         "reply_to_message_id": message.reply_to_message_id,
+        "replied_message": build_reply_preview(db, message),
         "is_recalled": message.is_recalled,
         "recalled_at": message.recalled_at.isoformat() if message.recalled_at else None,
-        "created_at": message.created_at.isoformat(),
+        "created_at": message.created_at.isoformat() if message.created_at else None,
         "attachments": [serialize_attachment(item) for item in message.attachments],
     }
 
@@ -318,7 +361,6 @@ async def websocket_room_chat(websocket: WebSocket, room_id: int):
                         break
                     continue
 
-                attachments = []
                 try:
                     attachments = [normalize_attachment_payload(item) for item in raw_attachments]
                 except HTTPException as exc:
@@ -456,15 +498,23 @@ async def websocket_room_chat(websocket: WebSocket, room_id: int):
 
                 db.commit()
 
-                message_with_attachments = db.execute(
-                    select(Message)
-                    .options(selectinload(Message.attachments))
-                    .where(Message.id == msg.id)
-                ).scalar_one()
+                message_with_attachments = load_message_with_attachments(db, msg.id)
+                if not message_with_attachments:
+                    ok = await safe_send_personal_message(
+                        websocket,
+                        room_id,
+                        {
+                            "event": "error",
+                            "data": {"message": "message created but failed to load result"},
+                        },
+                    )
+                    if not ok:
+                        break
+                    continue
 
                 outgoing = {
                     "event": "new_message",
-                    "data": serialize_message(message_with_attachments, current_user.username),
+                    "data": serialize_message(db, message_with_attachments, current_user.username),
                 }
 
             finally:

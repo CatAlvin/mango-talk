@@ -53,41 +53,44 @@ Target capabilities:
 
 ## Current Progress
 
-### v0.5
-Mango Talk has entered the stage of **richer chat features and more product-like message interaction**.
+### v0.6
+Mango Talk has entered the stage of **room creation completion and full reply interaction polish**.
 
 Completed backend / frontend capabilities:
-- upload API `/uploads` completed
-- local disk file storage path works
-- `message_attachments` table and model completed
-- attachment metadata can be linked to messages
-- `/messages` now supports `text / image / file`
-- `/messages/room/{room_id}` now returns attachments with messages
-- attachment messages can be sent through WebSocket
-- attachment messages can be broadcast in real time
-- frontend supports richer attachment rendering
-- file messages render as attachment cards
-- image messages render as image previews
-- frontend upload entry added in chat composer
-- frontend now supports upload -> send attachment message workflow
-- public subdomain upload routing works through Nginx
-- recall button added for own messages
-- recall action now syncs to all clients through WebSocket event
-- recall state updates in real time without manual refresh
+- frontend private room creation entry completed
+- frontend group room creation entry completed
+- `/users/search` added for user lookup in room creation workflow
+- frontend can now search users and directly create or enter existing private rooms
+- frontend can now create group rooms with group name, optional description, and member selection
+- room list refresh + auto-enter after room creation completed
+- reply preview UI upgraded from simple `reply_to_message_id` hint to readable preview block
+- reply action entry added on message cards
+- composer now supports “replying to message” state
+- text message sending now carries `reply_to_message_id`
+- attachment message sending now also carries `reply_to_message_id`
+- desktop message action buttons are now hover-revealed for cleaner UI
+- mobile message action buttons remain visible for usability
+- reply preview is clickable and can jump to the original message
+- jumped target message now gets temporary highlight feedback
+- backend message schema now returns `sender_username`
+- backend message schema now returns `replied_message` preview payload
+- `/messages/room/{room_id}` now returns reply preview summary for reply messages
+- WebSocket `new_message` payload now also returns reply preview summary
+- frontend reply preview now prefers backend `replied_message` instead of relying only on currently loaded messages
 
 Verified workflows:
-- upload a file from the chat composer
-- backend saves uploaded file to local disk
-- upload metadata is returned successfully
-- frontend sends uploaded attachment as `file` or `image` message
-- current room receives the attachment message in real time
-- historical message list still shows attachment content after refresh
-- own message can be recalled from frontend
-- other clients in the same room receive recall updates in real time
+- search users from frontend and create private room successfully
+- create group room from frontend and auto-enter the new room successfully
+- reply to an existing message from frontend composer successfully
+- send text reply message with correct reply relation successfully
+- send attachment reply message with correct reply relation successfully
+- click reply preview and jump back to the original message successfully
+- original message highlight feedback works after jump
+- reply preview remains readable even when the original message is not currently in the latest loaded list, as long as backend returns `replied_message`
 
 Current status:
-- Mango Talk already supports **text chat + attachment chat + real-time recall sync**
-- the project has moved beyond a plain chat prototype and is now much closer to a usable standard chat product
+- Mango Talk already supports **text chat + attachment chat + real-time recall sync + frontend room creation + usable reply workflow**
+- the project has moved beyond a plain real-time chat prototype and is now much closer to a complete standard chat product
 
 ## Project Structure
 
@@ -119,23 +122,33 @@ npm run dev
 
 ## Roadmap
 
-### v0.5 — Richer Chat Features
+### v0.6 — Room Creation and Reply Workflow Polish
 Completed:
-- image upload foundation
-- file upload foundation
-- message attachment model
-- richer message rendering
-- frontend upload entry
-- message recall event sync to frontend
+- frontend private room creation entry
+- frontend group room creation entry
+- user search endpoint for room creation
+- reply preview rendering upgrade
+- frontend reply action entry
+- composer reply state
+- clickable reply preview jump-to-origin interaction
+- reply preview backend summary payload
+- cleaner desktop message action interaction
+- better mobile action visibility
 
-Still to do:
+### v0.7 — Profile System and Product Polish
+Planned:
 - room avatar support
 - user avatar upload / display support
-- reply preview rendering upgrade
-- room creation entry in frontend
-- better mobile interaction polish
+- user profile edit page
+- personal information update
+- password change
+- avatar upload for user profile
+- richer room header presentation
+- better mobile interaction polish for room creation and message actions
+- overall UI polish for profile-related interaction
 
-### v0.6 — Deployment and Production Hardening
+### v0.8 — Deployment and Production Hardening
+Planned:
 - replace Vite dev serving with production frontend build
 - Nginx serve frontend static files directly
 - stable reverse proxy for backend REST API and WebSocket
@@ -149,7 +162,7 @@ Still to do:
 
 - Secrets must never be committed.
 - `backend/.env` is local-only.
-- Current project version is `v0.5`.
+- Current project version is `v0.6`.
 - Current public development domain is `mango-talk.chenglan.tech`.
 - Existing blog deployment on `chenglan.tech` remains isolated from Mango Talk deployment.
-- Current Mango Talk prototype already supports login, room list, message list, room-based real-time chat, attachment messages, and real-time recall sync.
+- Current Mango Talk prototype already supports login, room list, message list, room-based real-time chat, attachment messages, real-time recall sync, frontend room creation, and full basic reply interaction.

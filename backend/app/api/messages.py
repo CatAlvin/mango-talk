@@ -1,4 +1,6 @@
+import os
 from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -29,6 +31,73 @@ def get_room_member(db: Session, room_id: int, user_id: int) -> ChatRoomMember |
             ChatRoomMember.user_id == user_id,
         )
     ).scalar_one_or_none()
+
+
+def load_message_with_attachments(db: Session, message_id: int) -> Message | None:
+    return db.execute(
+        select(Message)
+        .options(selectinload(Message.attachments))
+        .where(Message.id == message_id)
+    ).scalar_one_or_none()
+
+
+def serialize_attachment(attachment: MessageAttachment) -> dict:
+    return {
+        "id": attachment.id,
+        "message_id": attachment.message_id,
+        "attachment_type": attachment.attachment_type,
+        "original_name": attachment.original_name,
+        "stored_name": attachment.stored_name,
+        "storage_path": attachment.storage_path,
+        "file_url": attachment.file_url,
+        "mime_type": attachment.mime_type,
+        "file_size": attachment.file_size,
+        "created_at": attachment.created_at,
+    }
+
+
+def build_reply_preview(db: Session, message: Message) -> dict | None:
+    if not message.reply_to_message_id:
+        return None
+
+    reply_target = load_message_with_attachments(db, message.reply_to_message_id)
+    if not reply_target:
+        return None
+
+    if reply_target.room_id != message.room_id:
+        return None
+
+    reply_sender = db.get(User, reply_target.sender_id)
+
+    return {
+        "id": reply_target.id,
+        "sender_id": reply_target.sender_id,
+        "sender_username": reply_sender.username if reply_sender else None,
+        "message_type": reply_target.message_type,
+        "content": reply_target.content,
+        "is_recalled": reply_target.is_recalled,
+        "created_at": reply_target.created_at,
+        "attachments": [serialize_attachment(item) for item in reply_target.attachments],
+    }
+
+
+def serialize_message_public(db: Session, message: Message) -> dict:
+    sender = db.get(User, message.sender_id)
+
+    return {
+        "id": message.id,
+        "room_id": message.room_id,
+        "sender_id": message.sender_id,
+        "sender_username": sender.username if sender else None,
+        "message_type": message.message_type,
+        "content": message.content,
+        "reply_to_message_id": message.reply_to_message_id,
+        "replied_message": build_reply_preview(db, message),
+        "is_recalled": message.is_recalled,
+        "recalled_at": message.recalled_at,
+        "created_at": message.created_at,
+        "attachments": [serialize_attachment(item) for item in message.attachments],
+    }
 
 
 def validate_attachment_payload(attachment: MessageAttachmentCreate) -> None:
@@ -185,15 +254,16 @@ def create_message(
 
     db.commit()
 
-    message_with_attachments = db.execute(
-        select(Message)
-        .options(selectinload(Message.attachments))
-        .where(Message.id == msg.id)
-    ).scalar_one()
+    message_with_attachments = load_message_with_attachments(db, msg.id)
+    if not message_with_attachments:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="消息创建成功，但读取结果失败",
+        )
 
     return {
         "message": "message sent",
-        "data": message_with_attachments,
+        "data": serialize_message_public(db, message_with_attachments),
     }
 
 
@@ -226,7 +296,7 @@ def list_room_messages(
         .limit(limit)
     ).scalars().all()
 
-    return messages
+    return [serialize_message_public(db, message) for message in messages]
 
 
 @router.post("/{message_id}/recall", response_model=MessageActionResponse)
@@ -269,23 +339,29 @@ async def recall_message(
     msg.is_recalled = True
     msg.recalled_at = datetime.now()
     db.commit()
-    db.refresh(msg)
+
+    refreshed = load_message_with_attachments(db, msg.id)
+    if not refreshed:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="消息撤回成功，但读取结果失败",
+        )
 
     await manager.broadcast(
-        msg.room_id,
+        refreshed.room_id,
         {
             "event": "message_recalled",
             "data": {
-                "id": msg.id,
-                "room_id": msg.room_id,
-                "sender_id": msg.sender_id,
+                "id": refreshed.id,
+                "room_id": refreshed.room_id,
+                "sender_id": refreshed.sender_id,
                 "is_recalled": True,
-                "recalled_at": msg.recalled_at.isoformat() if msg.recalled_at else None,
+                "recalled_at": refreshed.recalled_at.isoformat() if refreshed.recalled_at else None,
             },
         },
     )
 
     return {
         "message": "message recalled",
-        "data": msg,
+        "data": serialize_message_public(db, refreshed),
     }

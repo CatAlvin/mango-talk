@@ -40,10 +40,16 @@
       <div class="room-section">
         <div class="room-section-header">
           <h3>我的房间</h3>
-          <button class="refresh-btn" @click="handleRefreshRooms" :disabled="roomStore.loading">
-            <svg v-if="!roomStore.loading" viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
-            <span v-else class="spinner-tiny"></span>
-          </button>
+
+          <div class="room-header-actions">
+            <GroupRoomCreator @room-created="handleGroupRoomCreated" />
+            <PrivateRoomCreator @room-created="handlePrivateRoomCreated" />
+
+            <button class="refresh-btn" @click="handleRefreshRooms" :disabled="roomStore.loading">
+              <svg v-if="!roomStore.loading" viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+              <span v-else class="spinner-tiny"></span>
+            </button>
+          </div>
         </div>
 
         <div v-if="roomStore.loading && roomStore.rooms.length === 0" class="room-empty">
@@ -140,7 +146,13 @@
                 v-for="message in currentMessages"
                 :key="message.id"
                 class="message-row"
-                :class="{ mine: isMine(message) }"
+                :data-message-id="message.id"
+                :class="{
+                  mine: isMine(message),
+                  'has-actions': canReplyMessage(message) || canRecallMessage(message),
+                  'replying-target': replyDraft?.messageId === message.id,
+                  'jump-highlight': activeJumpMessageId === message.id
+                }"
               >
                 <div class="message-avatar-col" v-if="!isMine(message)">
                   <div class="msg-avatar">{{ getSenderLabel(message).charAt(0) }}</div>
@@ -163,9 +175,24 @@
                       recalled: message.is_recalled
                     }"
                   >
-                    <p v-if="message.reply_to_message_id" class="reply-tip">
-                      回复消息 #{{ message.reply_to_message_id }}
-                    </p>
+                    <div
+                      v-if="message.reply_to_message_id && !message.is_recalled"
+                      class="reply-preview"
+                      :class="{
+                        mine: isMine(message),
+                        missing: !getReplyTargetMessage(message),
+                        clickable: !!getReplyTargetMessage(message)
+                      }"
+                      :title="getReplyTargetMessage(message) ? '点击定位原消息' : '原消息暂未加载，当前无法定位'"
+                      @click="handleReplyPreviewClick(message)"
+                    >
+                      <p class="reply-preview-label">
+                        {{ getReplyPreviewTitle(message) }}
+                      </p>
+                      <p class="reply-preview-content">
+                        {{ getReplyPreviewContent(message) }}
+                      </p>
+                    </div>
 
                     <p v-if="message.is_recalled" class="recalled-text">
                       该消息已被撤回
@@ -236,11 +263,22 @@
                   </div>
 
                   <div
-                    v-if="canRecallMessage(message)"
+                    v-if="canReplyMessage(message) || canRecallMessage(message)"
                     class="message-actions"
                     :class="{ mine: isMine(message) }"
                   >
                     <button
+                      v-if="canReplyMessage(message)"
+                      class="reply-btn"
+                      type="button"
+                      :class="{ active: replyDraft?.messageId === message.id }"
+                      @click="handleReplyMessage(message)"
+                    >
+                      回复
+                    </button>
+
+                    <button
+                      v-if="canRecallMessage(message)"
                       class="recall-btn"
                       type="button"
                       :disabled="recallingMessageId === message.id"
@@ -280,6 +318,25 @@
 
       <footer class="message-composer" v-if="roomStore.selectedRoom">
         <div class="composer-box">
+          <div v-if="replyDraft" class="reply-draft-bar">
+            <div class="reply-draft-text">
+              <p class="reply-draft-label">
+                正在回复 {{ replyDraft.senderLabel }}
+              </p>
+              <p class="reply-draft-content">
+                {{ replyDraft.previewText }}
+              </p>
+            </div>
+
+            <button
+              class="reply-draft-cancel"
+              type="button"
+              @click="clearReplyDraft"
+            >
+              取消
+            </button>
+          </div>
+
           <div class="composer-input-row">
             <textarea
               v-model="draftMessage"
@@ -356,6 +413,8 @@ import http from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 import { useRoomStore } from '../stores/room'
 import { useMessageStore } from '../stores/message'
+import PrivateRoomCreator from '../components/PrivateRoomCreator.vue'
+import GroupRoomCreator from '../components/GroupRoomCreator.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -370,6 +429,9 @@ const sendError = ref('')
 const sending = ref(false)
 const uploading = ref(false)
 const recallingMessageId = ref(null)
+const replyDraft = ref(null)
+const activeJumpMessageId = ref(null)
+const jumpHighlightTimer = ref(null)
 
 const sidebarOpen = ref(false)
 
@@ -491,6 +553,206 @@ function canRecallMessage(message) {
     !message.is_recalled &&
     isMine(message)
   )
+}
+
+function canReplyMessage(message) {
+  return !!message && !message.is_recalled
+}
+
+function getMessagePreviewText(message) {
+  if (!message) {
+    return '该消息暂无可预览内容'
+  }
+
+  if (message.is_recalled) {
+    return '该消息已被撤回'
+  }
+
+  const content = (message.content || '').trim()
+  const attachments = getMessageAttachments(message)
+  const firstAttachment = attachments[0]
+
+  if (message.message_type === 'image') {
+    if (content && firstAttachment?.original_name) {
+      return `图片 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `图片 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `图片 · ${firstAttachment.original_name}`
+    }
+
+    return '图片消息'
+  }
+
+  if (message.message_type === 'file') {
+    if (content && firstAttachment?.original_name) {
+      return `文件 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `文件 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `文件 · ${firstAttachment.original_name}`
+    }
+
+    return '文件消息'
+  }
+
+  if (content) {
+    return content
+  }
+
+  return '该消息暂无可预览内容'
+}
+
+function handleReplyMessage(message) {
+  if (!canReplyMessage(message)) {
+    return
+  }
+
+  replyDraft.value = {
+    messageId: message.id,
+    senderLabel: getSenderLabel(message),
+    previewText: getMessagePreviewText(message),
+  }
+}
+
+function clearReplyDraft() {
+  replyDraft.value = null
+}
+
+function clearJumpHighlightTimer() {
+  if (jumpHighlightTimer.value) {
+    clearTimeout(jumpHighlightTimer.value)
+    jumpHighlightTimer.value = null
+  }
+}
+
+function highlightJumpTarget(messageId) {
+  clearJumpHighlightTimer()
+  activeJumpMessageId.value = messageId
+
+  jumpHighlightTimer.value = setTimeout(() => {
+    if (activeJumpMessageId.value === messageId) {
+      activeJumpMessageId.value = null
+    }
+  }, 1800)
+}
+
+async function jumpToMessage(messageId, behavior = 'smooth') {
+  if (!messageId) {
+    return false
+  }
+
+  await nextTick()
+
+  const container = messageScrollRef.value
+  if (!container) {
+    return false
+  }
+
+  const target = container.querySelector(`[data-message-id="${messageId}"]`)
+  if (!target) {
+    return false
+  }
+
+  target.scrollIntoView({
+    behavior,
+    block: 'center',
+  })
+
+  highlightJumpTarget(messageId)
+  return true
+}
+
+async function handleReplyPreviewClick(message) {
+  const target = getReplyTargetMessage(message)
+
+  if (!target) {
+    return
+  }
+
+  await jumpToMessage(target.id)
+}
+
+function getReplyTargetMessage(message) {
+  if (!message?.reply_to_message_id) {
+    return null
+  }
+
+  return currentMessages.value.find(
+    (item) => item.id === message.reply_to_message_id
+  ) || null
+}
+
+function getReplyPreviewTitle(message) {
+  const target = getReplyTargetMessage(message)
+
+  if (!target) {
+    return `回复消息 #${message.reply_to_message_id}`
+  }
+
+  return `回复 ${getSenderLabel(target)}`
+}
+
+function getReplyPreviewContent(message) {
+  const target = getReplyTargetMessage(message)
+
+  if (!target) {
+    return '原消息暂未加载'
+  }
+
+  if (target.is_recalled) {
+    return '该原消息已被撤回'
+  }
+
+  const content = (target.content || '').trim()
+  const attachments = getMessageAttachments(target)
+  const firstAttachment = attachments[0]
+
+  if (target.message_type === 'image') {
+    if (content && firstAttachment?.original_name) {
+      return `图片 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `图片 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `图片 · ${firstAttachment.original_name}`
+    }
+
+    return '图片消息'
+  }
+
+  if (target.message_type === 'file') {
+    if (content && firstAttachment?.original_name) {
+      return `文件 · ${content} · ${firstAttachment.original_name}`
+    }
+
+    if (content) {
+      return `文件 · ${content}`
+    }
+
+    if (firstAttachment?.original_name) {
+      return `文件 · ${firstAttachment.original_name}`
+    }
+
+    return '文件消息'
+  }
+
+  if (content) {
+    return content
+  }
+
+  return '该原消息暂无可预览内容'
 }
 
 function formatTime(isoString) {
@@ -700,6 +962,7 @@ function connectWebSocket(roomId) {
         if (mine && isPendingMessageConfirmed(message)) {
           draftMessage.value = ''
           sendError.value = ''
+          clearReplyDraft()
           resetPendingSendState()
         }
       }
@@ -742,6 +1005,26 @@ async function handleRefreshRooms() {
   }
 }
 
+async function handlePrivateRoomCreated(roomId) {
+  try {
+    await roomStore.fetchMyRooms()
+    roomStore.selectRoom(roomId)
+    sidebarOpen.value = false
+  } catch (error) {
+    console.error('创建私聊后刷新房间失败:', error)
+  }
+}
+
+async function handleGroupRoomCreated(roomId) {
+  try {
+    await roomStore.fetchMyRooms()
+    roomStore.selectRoom(roomId)
+    sidebarOpen.value = false
+  } catch (error) {
+    console.error('创建群聊后刷新房间失败:', error)
+  }
+}
+
 function handleSelectRoom(roomId) {
   roomStore.selectRoom(roomId)
 }
@@ -750,6 +1033,9 @@ function handleLogout() {
   disconnectWebSocket()
   resetPendingSendState()
   uploading.value = false
+  clearReplyDraft()
+  activeJumpMessageId.value = null
+  clearJumpHighlightTimer()
   authStore.logout()
   roomStore.clearRooms()
   messageStore.clearMessages()
@@ -828,6 +1114,7 @@ async function handleUploadAndSendAttachment(file) {
   try {
     const attachment = await uploadAttachment(file)
     const currentContent = draftMessage.value.trim()
+    const currentReplyToMessageId = replyDraft.value?.messageId ?? null
     const messageType = attachment.attachment_type === 'image' ? 'image' : 'file'
 
     const currentWs = wsRef.value
@@ -847,6 +1134,7 @@ async function handleUploadAndSendAttachment(file) {
         data: {
           message_type: messageType,
           content: currentContent,
+          reply_to_message_id: currentReplyToMessageId,
           attachments: [attachment],
         },
       })
@@ -886,6 +1174,8 @@ async function handleSendMessage() {
   }
 
   try {
+    const currentReplyToMessageId = replyDraft.value?.messageId ?? null
+
     sending.value = true
     sendError.value = ''
     pendingMessageText.value = content
@@ -898,6 +1188,7 @@ async function handleSendMessage() {
         data: {
           message_type: 'text',
           content,
+          reply_to_message_id: currentReplyToMessageId,
           attachments: [],
         },
       })
@@ -955,6 +1246,9 @@ watch(
     uploading.value = false
     sendError.value = ''
     draftMessage.value = ''
+    clearReplyDraft()
+    activeJumpMessageId.value = null
+    clearJumpHighlightTimer()
     resetRoomScrollState()
 
     await loadCurrentRoomMessages()
@@ -975,6 +1269,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   disconnectWebSocket()
   resetPendingSendState()
+  clearJumpHighlightTimer()
 })
 </script>
 
@@ -1143,6 +1438,7 @@ onBeforeUnmount(() => {
 }
 
 .room-section-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1157,6 +1453,12 @@ onBeforeUnmount(() => {
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
+}
+
+.room-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .refresh-btn {
@@ -1634,13 +1936,27 @@ onBeforeUnmount(() => {
 
 .message-actions {
   display: flex;
+  gap: 6px;
   margin-top: 4px;
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 
   &.mine {
     justify-content: flex-end;
   }
 }
 
+.message-row.has-actions:hover .message-actions,
+.message-row.has-actions:focus-within .message-actions,
+.message-row.replying-target .message-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.reply-btn,
 .recall-btn {
   border: none;
   background: transparent;
@@ -1650,12 +1966,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 6px;
-  transition: color 0.2s, background 0.2s;
-
-  &:hover:enabled {
-    color: var(--c-danger);
-    background: rgba(239,68,68,0.06);
-  }
+  transition: color 0.2s, background 0.2s, opacity 0.2s;
 
   &:disabled {
     opacity: 0.5;
@@ -1663,18 +1974,81 @@ onBeforeUnmount(() => {
   }
 }
 
-.reply-tip {
-  margin: 0 0 6px;
-  font-size: 11px;
-  opacity: 0.7;
-  padding: 4px 8px;
-  background: rgba(0,0,0,0.05);
-  border-radius: 6px;
-  display: inline-block;
+.reply-btn {
+  &:hover:enabled,
+  &.active {
+    color: var(--c-cyan-deep);
+    background: rgba(6,182,212,0.08);
+  }
 }
 
-.mine .reply-tip {
-  background: rgba(255,255,255,0.15);
+.recall-btn {
+  &:hover:enabled {
+    color: var(--c-danger);
+    background: rgba(239,68,68,0.06);
+  }
+}
+
+.reply-preview {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.06);
+  border-left: 3px solid rgba(6, 182, 212, 0.75);
+}
+
+.message-bubble.mine .reply-preview {
+  background: rgba(255, 255, 255, 0.14);
+  border-left-color: rgba(255, 255, 255, 0.75);
+}
+
+.reply-preview.missing {
+  opacity: 0.82;
+}
+
+.reply-preview.clickable {
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s, border-left-color 0.2s;
+}
+
+.reply-preview.clickable:hover {
+  background: rgba(15, 23, 42, 0.09);
+  transform: translateY(-1px);
+}
+
+.message-bubble.mine .reply-preview.clickable:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.reply-preview-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 0.92;
+}
+
+.reply-preview-content {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.78;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-row.jump-highlight .message-bubble {
+  animation: jump-highlight-flash 1.8s ease;
+  box-shadow:
+    0 0 0 2px rgba(6, 182, 212, 0.24),
+    0 10px 26px rgba(6, 182, 212, 0.14);
+}
+
+.message-row.jump-highlight.mine .message-bubble {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.30),
+    0 10px 28px rgba(249, 115, 22, 0.20);
 }
 
 .message-content,
@@ -1799,6 +2173,59 @@ onBeforeUnmount(() => {
 
 .file-input-hidden {
   display: none;
+}
+
+.reply-draft-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(6,182,212,0.06);
+  border: 1px solid rgba(6,182,212,0.14);
+}
+
+.reply-draft-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.reply-draft-label {
+  margin: 0 0 3px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-cyan-deep);
+}
+
+.reply-draft-content {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-draft-cancel {
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(15,23,42,0.06);
+  color: var(--c-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover {
+    background: rgba(239,68,68,0.08);
+    color: var(--c-danger);
+  }
 }
 
 .composer-input-row {
@@ -1968,6 +2395,18 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
+@keyframes jump-highlight-flash {
+  0% {
+    transform: scale(0.985);
+  }
+  20% {
+    transform: scale(1.008);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* ========== MOBILE ========== */
 .mobile-menu-btn {
   display: none;
@@ -2069,6 +2508,12 @@ onBeforeUnmount(() => {
 
   .message-body {
     max-width: 88%;
+  }
+
+  .message-actions {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
   }
 
   .message-bubble {

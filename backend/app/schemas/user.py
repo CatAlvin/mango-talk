@@ -21,6 +21,14 @@ class UserPublic(BaseModel):
     avatar_url: str | None
     created_at: datetime
 
+class UserSearchItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    phone: str | None
+    avatar_url: str | None
+
 class RegisterResponse(BaseModel):
     message: str
     user: UserPublic
